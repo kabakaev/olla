@@ -26,6 +26,7 @@ type RequestProfile struct {
 	RoutingDecision      *ModelRoutingDecision // Routing strategy decision
 	Path                 string
 	ModelName            string
+	Prompt               string // raw prompt/messages for token counting
 	SupportedBy          []string
 
 	RequestType          RequestType // Chat, completion, embedding, etc.
@@ -55,7 +56,7 @@ func (rp *RequestProfile) IsCompatibleWith(endpointType string) bool {
 		if supported == endpointType {
 			return true
 		}
-		if supported == ProfileOpenAICompatible && (endpointType == ProfileOllama || endpointType == ProfileLmStudio) {
+		if supported == ProfileOpenAICompatible && (endpointType == ProfileOllama || endpointType == ProfileLmStudio || endpointType == ProfileLlamaCpp || endpointType == ProfileVLLM || endpointType == ProfileSGLang) {
 			return true
 		}
 	}
