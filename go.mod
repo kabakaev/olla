@@ -3,6 +3,7 @@ module github.com/thushan/olla
 go 1.24.0
 
 require (
+	connectrpc.com/connect v1.19.1
 	github.com/docker/go-units v0.5.0
 	github.com/expr-lang/expr v1.17.8
 	github.com/jellydator/ttlcache/v3 v3.4.1
@@ -15,6 +16,7 @@ require (
 	github.com/tidwall/gjson v1.19.0
 	golang.org/x/sync v0.19.0
 	golang.org/x/time v0.14.0
+	google.golang.org/protobuf v1.36.11
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1
 	gopkg.in/yaml.v3 v3.0.1
 )

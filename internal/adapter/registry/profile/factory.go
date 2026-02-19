@@ -15,6 +15,7 @@ type ProfileFactory interface {
 	ReloadProfiles() error
 	ValidateProfileType(platformType string) bool
 	NormalizeProviderName(providerName string) string
+	GetAnthropicSupport(endpointType string) *domain.AnthropicSupportConfig
 }
 
 type Factory struct {

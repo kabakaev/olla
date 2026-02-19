@@ -10,6 +10,7 @@ import (
 	"net/netip"
 	"time"
 
+	"github.com/thushan/olla/internal/adapter/registry/profile"
 	"github.com/thushan/olla/internal/app/handlers"
 	"github.com/thushan/olla/internal/app/handlers/dashboard"
 	"github.com/thushan/olla/internal/app/middleware"
@@ -52,18 +53,20 @@ type HTTPService struct {
 	proxySvc         *ProxyServiceWrapper
 	discoverySvc     *DiscoveryService
 	securitySvc      *SecurityService
+	factory          profile.ProfileFactory
 }
 
-// NewHTTPService creates a new HTTP service
 func NewHTTPService(
 	config *config.ServerConfig,
 	fullConfig *config.Config,
 	logger logger.StyledLogger,
+	factory profile.ProfileFactory,
 ) *HTTPService {
 	return &HTTPService{
 		config:     config,
 		fullConfig: fullConfig,
 		logger:     logger,
+		factory:    factory,
 	}
 }
 
@@ -136,6 +139,7 @@ func (s *HTTPService) Start(ctx context.Context) error {
 		s.repository,
 		s.securityChain,
 		s.logger,
+		s.factory,
 	)
 	if err != nil {
 		return fmt.Errorf("failed to create application handler: %w", err)
