@@ -1,0 +1,45 @@
+server:
+  host: "0.0.0.0"
+  port: 40114
+  request_logging: true
+
+proxy:
+  engine: "olla"
+  load_balancer: "round-robin"
+
+discovery:
+  type: "static"
+  refresh_interval: 10s
+  static:
+    endpoints:
+      - url: "http://192.168.178.225:11434"
+        name: "8k-context"
+        type: "llamacpp"
+        max_context_length: 8192
+        check_interval: 2s
+        check_timeout: 1s
+      - url: "http://192.168.178.205:11434"
+        name: "128k-context"
+        type: "llamacpp"
+        max_context_length: 131072
+        check_interval: 2s
+        check_timeout: 1s
+  model_discovery:
+    enabled: true
+    interval: 1m
+    timeout: 10s
+
+model_registry:
+  type: "memory"
+  enable_unifier: true
+  routing_strategy:
+    type: "discovery"
+
+management:
+  port: 40115
+  token: "test-token"
+
+logging:
+  level: "debug"
+  format: "text"
+  output: "stdout"

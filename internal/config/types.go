@@ -14,9 +14,10 @@ import (
 // Config holds all configuration for the application
 type Config struct {
 	Logging       LoggingConfig       `yaml:"logging"`
+	Management    ManagementConfig    `yaml:"management"`
 	Filename      string              `yaml:"-"`
-	Translators   TranslatorsConfig   `yaml:"translators"`
 	ModelRegistry ModelRegistryConfig `yaml:"model_registry"`
+	Translators   TranslatorsConfig   `yaml:"translators"`
 	Proxy         ProxyConfig         `yaml:"proxy"`
 	Discovery     DiscoveryConfig     `yaml:"discovery"`
 	Server        ServerConfig        `yaml:"server"`
@@ -102,15 +103,16 @@ type EndpointConfig struct {
 	// Priority uses a pointer so nil means "omitted in config" rather than explicitly zero.
 	// This lets applyEndpointDefaults distinguish "user set 0" from "user said nothing",
 	// since 0 is a valid, lower-than-default priority value.
-	Priority       *int          `yaml:"priority"`
-	URL            string        `yaml:"url"`
-	Name           string        `yaml:"name"`
-	Type           string        `yaml:"type"`
-	HealthCheckURL string        `yaml:"health_check_url"`
-	ModelURL       string        `yaml:"model_url"`
-	CheckInterval  time.Duration `yaml:"check_interval"`
-	CheckTimeout   time.Duration `yaml:"check_timeout"`
-	PreservePath   bool          `yaml:"preserve_path"`
+	Priority         *int          `yaml:"priority"`
+	URL              string        `yaml:"url"`
+	Name             string        `yaml:"name"`
+	Type             string        `yaml:"type"`
+	HealthCheckURL   string        `yaml:"health_check_url"`
+	ModelURL         string        `yaml:"model_url"`
+	CheckInterval    time.Duration `yaml:"check_interval"`
+	CheckTimeout     time.Duration `yaml:"check_timeout"`
+	PreservePath     bool          `yaml:"preserve_path"`
+	MaxContextLength int64         `yaml:"max_context_length"`
 }
 
 // LoggingConfig holds logging configuration
@@ -127,10 +129,18 @@ type EngineeringConfig struct {
 
 // ModelRegistryConfig holds model registry configuration
 type ModelRegistryConfig struct {
-	RoutingStrategy ModelRoutingStrategy `yaml:"routing_strategy"`
 	Type            string               `yaml:"type"`
+	Tokenizer       TokenizerConfig      `yaml:"tokenizer"`
+	RoutingStrategy ModelRoutingStrategy `yaml:"routing_strategy"`
 	Unification     UnificationConfig    `yaml:"unification"`
 	EnableUnifier   bool                 `yaml:"enable_unifier"`
+}
+
+// TokenizerConfig holds configuration for the tokenizer
+type TokenizerConfig struct {
+	Type          string        `yaml:"type"` // "auto", "remote", "approx"
+	RemoteURL     string        `yaml:"remote_url"`
+	RemoteTimeout time.Duration `yaml:"remote_timeout"`
 }
 
 // ModelRoutingStrategy configures how models are routed when not all endpoints have them
@@ -345,4 +355,10 @@ func (c *AnthropicTranslatorConfig) Validate() error {
 	}
 
 	return nil
+}
+
+// ManagementConfig holds configuration for the management API
+type ManagementConfig struct {
+	Token string `yaml:"token"` // Authentication token (Bearer)
+	Port  int    `yaml:"port"`
 }

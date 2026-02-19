@@ -30,6 +30,7 @@ type proxyRequest struct {
 	contentLength  int64
 	hadError       bool
 	isStreaming    bool
+	tokenCount     int
 }
 
 func (a *Application) proxyHandler(w http.ResponseWriter, r *http.Request) {
@@ -117,6 +118,17 @@ func (a *Application) analyzeRequest(ctx context.Context, r *http.Request, pr *p
 	if profile != nil && profile.ModelName != "" {
 		pr.model = profile.ModelName
 		pr.stats.Model = pr.model
+
+		// If prompt is available, count tokens
+		if profile.Prompt != "" {
+			count, err := a.tokenizer.CountTokens(ctx, profile.Prompt)
+			if err == nil {
+				pr.tokenCount = count
+				pr.requestLogger.Debug("Estimated token count", "count", count)
+			} else {
+				pr.requestLogger.Warn("Failed to count tokens", "error", err)
+			}
+		}
 	}
 
 	pr.stats.PathResolutionMs = time.Since(pathResolutionStart).Milliseconds()
@@ -130,6 +142,11 @@ func (a *Application) getCompatibleEndpoints(ctx context.Context, pr *proxyReque
 	}
 
 	compatibleEndpoints := a.filterEndpointsByProfile(endpoints, pr.profile, pr.requestLogger)
+
+	// Apply context length filtering if we have token count
+	if pr.tokenCount > 0 {
+		compatibleEndpoints = a.filterEndpointsByContextLength(compatibleEndpoints, pr.tokenCount, pr.requestLogger)
+	}
 
 	return compatibleEndpoints, nil
 }
@@ -334,7 +351,9 @@ func (a *Application) filterEndpointsByProfile(endpoints []*domain.Endpoint, pro
 		for _, endpoint := range endpoints {
 			// Normalise endpoint type to handle variations (e.g., lmstudio -> lm-studio)
 			normalizedType := NormaliseProviderType(endpoint.Type)
-			if profile.IsCompatibleWith(normalizedType) {
+			isCompatible := profile.IsCompatibleWith(normalizedType)
+			logger.Debug("Checking endpoint compatibility", "name", endpoint.Name, "type", endpoint.Type, "normalized", normalizedType, "is_compatible", isCompatible, "supported_by", profile.SupportedBy)
+			if isCompatible {
 				compatible = append(compatible, endpoint)
 			}
 		}
@@ -530,4 +549,36 @@ func (a *Application) filterEndpointsByCapableModels(endpoints []*domain.Endpoin
 		"total_count", len(endpoints))
 
 	return capableEndpoints
+}
+
+func (a *Application) filterEndpointsByContextLength(endpoints []*domain.Endpoint, tokenCount int, logger logger.StyledLogger) []*domain.Endpoint {
+	if tokenCount <= 0 {
+		return endpoints
+	}
+
+	filtered := make([]*domain.Endpoint, 0, len(endpoints))
+
+	for _, endpoint := range endpoints {
+		// If endpoint MaxContextLength is 0, it means no limit/unknown, so we include it.
+		// We also include if MaxContextLength is sufficient.
+		if endpoint.MaxContextLength == 0 || int64(tokenCount) <= endpoint.MaxContextLength {
+			filtered = append(filtered, endpoint)
+		}
+	}
+
+	if len(filtered) == 0 {
+		logger.Warn("All endpoints filtered out by context length requirement. Falling back to all endpoints.",
+			"token_count", tokenCount,
+			"total_endpoints", len(endpoints))
+		return endpoints
+	}
+
+	if len(filtered) < len(endpoints) {
+		logger.Debug("Filtered endpoints by context length",
+			"token_count", tokenCount,
+			"filtered_count", len(filtered),
+			"total_count", len(endpoints))
+	}
+
+	return filtered
 }

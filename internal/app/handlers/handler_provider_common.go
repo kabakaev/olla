@@ -130,6 +130,11 @@ func (a *Application) getProviderEndpoints(ctx context.Context, providerType str
 		providerEndpoints = a.filterEndpointsByProfile(providerEndpoints, pr.profile, pr.requestLogger)
 	}
 
+	// Apply context length filtering if we have token count
+	if pr.tokenCount > 0 {
+		providerEndpoints = a.filterEndpointsByContextLength(providerEndpoints, pr.tokenCount, pr.requestLogger)
+	}
+
 	return providerEndpoints, nil
 }
 

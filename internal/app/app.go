@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/thushan/olla/internal/adapter/registry/profile"
 	"github.com/thushan/olla/internal/app/services"
 	"github.com/thushan/olla/internal/config"
 	"github.com/thushan/olla/internal/logger"
@@ -40,9 +41,49 @@ func CreateAndStartServiceManager(ctx context.Context, cfg *config.Config, logge
 // registration followed by dependency injection. This pattern allows circular dependency
 // resolution and ensures services can reference each other without initialisation races.
 func registerServices(manager *services.ServiceManager, cfg *config.Config, logger logger.StyledLogger) error {
+	profileFactory, err := initProfileFactory(logger)
+	if err != nil {
+		return err
+	}
+
+	if err := performRegistration(manager, cfg, logger, profileFactory); err != nil {
+		return err
+	}
+
+	performWiring(manager.GetRegistry())
+	return nil
+}
+
+func initProfileFactory(logger logger.StyledLogger) (*profile.Factory, error) {
+	profileFactory, err := profile.NewFactoryWithDefaults()
+	if err == nil {
+		return profileFactory, nil
+	}
+
+	// Fallback to empty factory
+	profileFactory, err = profile.NewFactory("")
+	if err != nil {
+		return nil, fmt.Errorf("failed to create profile factory: %w", err)
+	}
+
+	logger.Warn("Failed to load profiles from default location, using built-in", "error", err)
+	return profileFactory, nil
+}
+
+func performRegistration(manager *services.ServiceManager, cfg *config.Config, logger logger.StyledLogger, profileFactory *profile.Factory) error {
 	statsService := services.NewStatsService(logger)
 	if err := manager.Register(statsService); err != nil {
 		return fmt.Errorf("failed to register stats service: %w", err)
+	}
+
+	// Register Management Service
+	managementService := services.NewManagementService(
+		&cfg.Management,
+		logger,
+		profileFactory,
+	)
+	if err := manager.Register(managementService); err != nil {
+		return fmt.Errorf("failed to register management service: %w", err)
 	}
 
 	// Security service requires stats collector, but we defer resolution to avoid
@@ -61,6 +102,7 @@ func registerServices(manager *services.ServiceManager, cfg *config.Config, logg
 		&cfg.ModelRegistry,
 		nil,
 		logger,
+		profileFactory,
 	)
 	if err := manager.Register(discoveryService); err != nil {
 		return fmt.Errorf("failed to register discovery service: %w", err)
@@ -78,54 +120,54 @@ func registerServices(manager *services.ServiceManager, cfg *config.Config, logg
 		&cfg.Server,
 		cfg,
 		logger,
+		profileFactory,
 	)
 	if err := manager.Register(httpService); err != nil {
 		return fmt.Errorf("failed to register HTTP service: %w", err)
 	}
 
-	// Phase 2: Wire dependencies after all services are registered.
-	// This approach prevents nil pointer access during startup and allows
-	// services to reference each other safely.
-	registry := manager.GetRegistry()
+	return nil
+}
 
-	if sec, err := registry.GetSecurity(); err == nil {
-		if stats, err := registry.GetStats(); err == nil {
-			sec.SetStatsService(stats)
-		}
+func performWiring(registry *services.ServiceRegistry) {
+	stats, _ := registry.GetStats()
+	security, _ := registry.GetSecurity()
+	discovery, _ := registry.GetDiscovery()
+	proxy, _ := registry.GetProxy()
+	http, _ := registry.GetHTTP()
+
+	if security != nil && stats != nil {
+		security.SetStatsService(stats)
 	}
 
-	if disc, err := registry.GetDiscovery(); err == nil {
-		if stats, err := registry.GetStats(); err == nil {
-			disc.SetStatsService(stats)
-		}
+	if discovery != nil && stats != nil {
+		discovery.SetStatsService(stats)
 	}
 
-	if proxy, err := registry.GetProxy(); err == nil {
-		if stats, err := registry.GetStats(); err == nil {
+	if proxy != nil {
+		if stats != nil {
 			proxy.SetStatsService(stats)
 		}
-		if disc, err := registry.GetDiscovery(); err == nil {
-			proxy.SetDiscoveryService(disc)
+		if discovery != nil {
+			proxy.SetDiscoveryService(discovery)
 		}
-		if sec, err := registry.GetSecurity(); err == nil {
-			proxy.SetSecurityService(sec)
+		if security != nil {
+			proxy.SetSecurityService(security)
 		}
 	}
 
-	if http, err := registry.GetHTTP(); err == nil {
-		if stats, err := registry.GetStats(); err == nil {
+	if http != nil {
+		if stats != nil {
 			http.SetStatsService(stats)
 		}
-		if proxy, err := registry.GetProxy(); err == nil {
+		if proxy != nil {
 			http.SetProxyService(proxy)
 		}
-		if disc, err := registry.GetDiscovery(); err == nil {
-			http.SetDiscoveryService(disc)
+		if discovery != nil {
+			http.SetDiscoveryService(discovery)
 		}
-		if sec, err := registry.GetSecurity(); err == nil {
-			http.SetSecurityService(sec)
+		if security != nil {
+			http.SetSecurityService(security)
 		}
 	}
-
-	return nil
 }

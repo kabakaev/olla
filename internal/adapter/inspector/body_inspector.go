@@ -106,6 +106,13 @@ func (bi *BodyInspector) Inspect(ctx context.Context, r *http.Request, profile *
 		}
 	}
 
+	// Extract prompt for token counting
+	prompt := bi.extractPrompt(buffer.Bytes())
+	if prompt != "" {
+		profile.Prompt = prompt
+		bi.logger.Debug("Extracted prompt for token counting", "length", len(prompt))
+	}
+
 	return nil
 }
 
@@ -317,4 +324,70 @@ func (bi *BodyInspector) containsCodeKeywords(content string) bool {
 		}
 	}
 	return false
+}
+
+func (bi *BodyInspector) extractPrompt(body []byte) string {
+	if len(body) == 0 {
+		return ""
+	}
+
+	var data map[string]interface{}
+	if err := json.Unmarshal(body, &data); err != nil {
+		return ""
+	}
+
+	// Check for "prompt" field (completions API)
+	if prompt, ok := data["prompt"].(string); ok && prompt != "" {
+		return prompt
+	}
+
+	// Check for "messages" field (chat API)
+	if messages, ok := data["messages"].([]interface{}); ok {
+		var sb strings.Builder
+		for _, msg := range messages {
+			if msgMap, ok := msg.(map[string]interface{}); ok {
+				if content, ok := msgMap["content"]; ok {
+					bi.appendContent(&sb, content)
+					sb.WriteString("\n")
+				}
+			}
+		}
+		return sb.String()
+	}
+
+	// Check for "input" field (embeddings API)
+	if input, ok := data["input"]; ok {
+		if inputStr, ok := input.(string); ok {
+			return inputStr
+		}
+		if inputArr, ok := input.([]interface{}); ok {
+			var sb strings.Builder
+			for _, item := range inputArr {
+				if itemStr, ok := item.(string); ok {
+					sb.WriteString(itemStr)
+					sb.WriteString("\n")
+				}
+			}
+			return sb.String()
+		}
+	}
+
+	return ""
+}
+
+func (bi *BodyInspector) appendContent(sb *strings.Builder, content interface{}) {
+	switch v := content.(type) {
+	case string:
+		sb.WriteString(v)
+	case []interface{}:
+		for _, item := range v {
+			if itemMap, ok := item.(map[string]interface{}); ok {
+				if itemType, ok := itemMap["type"].(string); ok && itemType == "text" {
+					if text, ok := itemMap["text"].(string); ok {
+						sb.WriteString(text)
+					}
+				}
+			}
+		}
+	}
 }

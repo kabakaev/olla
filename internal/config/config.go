@@ -123,6 +123,10 @@ func DefaultConfig() *Config {
 					},
 				},
 			},
+			Tokenizer: TokenizerConfig{
+				Type:          "auto",
+				RemoteTimeout: 2 * time.Second,
+			},
 		},
 		Logging: LoggingConfig{
 			Level:  "info",
@@ -143,6 +147,10 @@ func DefaultConfig() *Config {
 					SessionHeader: "X-Session-ID",
 				},
 			},
+		},
+		Management: ManagementConfig{
+			Port:  40115,
+			Token: "",
 		},
 	}
 }
@@ -381,6 +389,18 @@ func applyEnvOverrides(config *Config) {
 		}
 	}
 
+	if val := os.Getenv("OLLA_MODEL_REGISTRY_TOKENIZER_TYPE"); val != "" {
+		config.ModelRegistry.Tokenizer.Type = val
+	}
+	if val := os.Getenv("OLLA_MODEL_REGISTRY_TOKENIZER_REMOTE_URL"); val != "" {
+		config.ModelRegistry.Tokenizer.RemoteURL = val
+	}
+	if val := os.Getenv("OLLA_MODEL_REGISTRY_TOKENIZER_REMOTE_TIMEOUT"); val != "" {
+		if timeout, err := time.ParseDuration(val); err == nil {
+			config.ModelRegistry.Tokenizer.RemoteTimeout = timeout
+		}
+	}
+
 	// config for request size limits + streaming
 	if val := os.Getenv("OLLA_TRANSLATORS_ANTHROPIC_ENABLED"); val != "" {
 		if enabled, err := strconv.ParseBool(val); err == nil {
@@ -396,6 +416,16 @@ func applyEnvOverrides(config *Config) {
 		if enabled, err := strconv.ParseBool(val); err == nil {
 			config.Translators.Anthropic.PassthroughEnabled = enabled
 		}
+	}
+
+	// Management API config
+	if val := os.Getenv("OLLA_MANAGEMENT_PORT"); val != "" {
+		if port, err := strconv.Atoi(val); err == nil {
+			config.Management.Port = port
+		}
+	}
+	if val := os.Getenv("OLLA_MANAGEMENT_TOKEN"); val != "" {
+		config.Management.Token = val
 	}
 }
 
