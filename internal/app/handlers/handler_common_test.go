@@ -48,6 +48,10 @@ func (m *mockProfileFactory) NormalizeProviderName(providerName string) string {
 	}
 }
 
+func (m *mockProfileFactory) GetAnthropicSupport(endpointType string) *domain.AnthropicSupportConfig {
+	return nil
+}
+
 func TestNormalizeProviderType(t *testing.T) {
 	tests := []struct {
 		name     string

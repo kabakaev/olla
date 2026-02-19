@@ -1,0 +1,36 @@
+syntax = "proto3";
+
+package olla.management.v1;
+
+option go_package = "github.com/thushan/olla/internal/gen/olla/management/v1;managementv1";
+
+import "google/protobuf/timestamp.proto";
+
+service ManagementService {
+  rpc ListProfiles(ListProfilesRequest) returns (ListProfilesResponse);
+  rpc ReloadProfiles(ReloadProfilesRequest) returns (ReloadProfilesResponse);
+  rpc GetStats(GetStatsRequest) returns (GetStatsResponse);
+}
+
+message ListProfilesRequest {}
+
+message ListProfilesResponse {
+  repeated string profiles = 1;
+}
+
+message ReloadProfilesRequest {}
+
+message ReloadProfilesResponse {
+  string status = 1;
+  string message = 2;
+}
+
+message GetStatsRequest {}
+
+message GetStatsResponse {
+  int64 total_requests = 1;
+  int64 active_requests = 2;
+  int64 error_count = 3;
+  google.protobuf.Timestamp start_time = 4;
+  string version = 5;
+}

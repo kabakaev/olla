@@ -37,6 +37,7 @@ type DiscoveryService struct {
 	// Stored atomically because SetPurgeDeadEndpointsFn is called from the main goroutine
 	// while the health-check goroutine may concurrently invoke the callback.
 	purgeDeadFn atomic.Pointer[func([]*domain.Endpoint)]
+	factory     profile.ProfileFactory
 }
 
 // NewDiscoveryService creates a new discovery service
@@ -45,12 +46,14 @@ func NewDiscoveryService(
 	registryConfig *config.ModelRegistryConfig,
 	statsCollector ports.StatsCollector,
 	logger logger.StyledLogger,
+	factory profile.ProfileFactory,
 ) *DiscoveryService {
 	return &DiscoveryService{
 		config:         config,
 		registryConfig: registryConfig,
 		statsCollector: statsCollector,
 		logger:         logger,
+		factory:        factory,
 	}
 }
 
@@ -146,11 +149,7 @@ func (s *DiscoveryService) Start(ctx context.Context) error {
 		httpClient := &http.Client{
 			Timeout: s.config.ModelDiscovery.Timeout,
 		}
-		profileFactory, err := profile.NewFactoryWithDefaults()
-		if err != nil {
-			return fmt.Errorf("failed to create profile factory: %w", err)
-		}
-		client := discovery.NewHTTPModelDiscoveryClient(profileFactory, s.logger, httpClient)
+		client := discovery.NewHTTPModelDiscoveryClient(s.factory, s.logger, httpClient)
 		discoveryConfig := discovery.DiscoveryConfig{
 			Interval:          s.config.ModelDiscovery.Interval,
 			Timeout:           s.config.ModelDiscovery.Timeout,
@@ -183,10 +182,14 @@ func (s *DiscoveryService) Start(ctx context.Context) error {
 			return fmt.Errorf("failed to start model discovery: %w", err)
 		}
 
-		// Run initial model discovery to populate the catalogue immediately
-		if err := s.modelDiscovery.DiscoverAll(ctx); err != nil {
-			s.logger.Warn("Initial model discovery failed", "error", err)
-		}
+		// Run initial model discovery to populate the catalogue immediately.
+		// We do this in a goroutine to avoid blocking the service manager and
+		// delaying the startup of other services like Management and Proxy.
+		go func() {
+			if err := s.modelDiscovery.DiscoverAll(ctx); err != nil {
+				s.logger.Warn("Initial model discovery failed", "error", err)
+			}
+		}()
 	}
 
 	s.logger.Info("Discovery service initialised",
