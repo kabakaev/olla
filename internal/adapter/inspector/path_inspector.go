@@ -11,7 +11,7 @@ import (
 )
 
 type PathInspector struct {
-	profileFactory *profile.Factory
+	profileFactory profile.ProfileFactory
 	logger         logger.StyledLogger
 	pathToProfiles map[string][]string
 }
@@ -20,7 +20,7 @@ const (
 	PathInspectorName = "path"
 )
 
-func NewPathInspector(profileFactory *profile.Factory, logger logger.StyledLogger) *PathInspector {
+func NewPathInspector(profileFactory profile.ProfileFactory, logger logger.StyledLogger) *PathInspector {
 	inspector := &PathInspector{
 		profileFactory: profileFactory,
 		logger:         logger,

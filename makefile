@@ -183,7 +183,15 @@ clean:
 deps:
 	@go mod download && go mod tidy
 
-ready-tools: fmt vet lint align
+# Generate protobuf files using buf
+generate: buf-generate
+
+buf-generate:
+	@echo "Generating protobuf files..."
+	@buf generate
+	@echo "Generating protobuf files...Done!"
+
+ready-tools: generate fmt vet lint align
 	@echo -e "\033[32mCode is clean for tests!\033[0m"
 
 # Make code ready for commit (test, test-race, fmt, vet, lint, align)
@@ -413,6 +421,8 @@ help:
 	@echo "  dev             - Build development binary (with debug symbols)"
 	@echo "  clean           - Clean build artifacts and logs"
 	@echo "  deps            - Download and tidy dependencies"
+	@echo "  generate        - Generate protobuf files using buf"
+	@echo "  buf-generate    - Generate protobuf files using buf"
 	@echo "  ready     		 - Make code ready for commit (test, fmt, vet, lint, align)"
 	@echo "  ready-tools     - Check code is ready with tools (fmt, vet, lint, align)"
 	@echo "  validate-linux  - Build and test Linux binaries (AMD64 + ARM64)"
@@ -440,4 +450,5 @@ help:
 	@echo "  mock-status             - Show AIMock container state"
 	@echo "  mock-logs               - Tail logs from all AIMock instances"
 	@echo "  test-sticky-manual      - Full sticky session end-to-end test (mock + olla + assert)"
+	@echo "  help            - Show this help"
 	@echo "  help            - Show this help"

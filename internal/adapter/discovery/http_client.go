@@ -34,13 +34,13 @@ const (
 // HTTPModelDiscoveryClient implements ModelDiscoveryClient using HTTP requests
 type HTTPModelDiscoveryClient struct {
 	httpClient     *http.Client
-	profileFactory *profile.Factory
+	profileFactory profile.ProfileFactory
 	logger         logger.StyledLogger
 	metrics        DiscoveryMetrics
 	mu             sync.RWMutex
 }
 
-func NewHTTPModelDiscoveryClient(profileFactory *profile.Factory, logger logger.StyledLogger, httpClient *http.Client) *HTTPModelDiscoveryClient {
+func NewHTTPModelDiscoveryClient(profileFactory profile.ProfileFactory, logger logger.StyledLogger, httpClient *http.Client) *HTTPModelDiscoveryClient {
 	return &HTTPModelDiscoveryClient{
 		httpClient:     httpClient,
 		profileFactory: profileFactory,
@@ -51,7 +51,7 @@ func NewHTTPModelDiscoveryClient(profileFactory *profile.Factory, logger logger.
 	}
 }
 
-func NewHTTPModelDiscoveryClientWithDefaults(profileFactory *profile.Factory, logger logger.StyledLogger) *HTTPModelDiscoveryClient {
+func NewHTTPModelDiscoveryClientWithDefaults(profileFactory profile.ProfileFactory, logger logger.StyledLogger) *HTTPModelDiscoveryClient {
 	return &HTTPModelDiscoveryClient{
 		httpClient: &http.Client{
 			Timeout: DefaultTimeout,
