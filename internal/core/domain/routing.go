@@ -32,6 +32,7 @@ type RequestProfile struct {
 	EstimatedTokens      int         // For capacity planning
 	RequiresFunctionCall bool
 	RequiresVision       bool
+	Prompt               string // raw prompt/messages for token counting
 }
 
 func NewRequestProfile(path string) *RequestProfile {
@@ -55,7 +56,7 @@ func (rp *RequestProfile) IsCompatibleWith(endpointType string) bool {
 		if supported == endpointType {
 			return true
 		}
-		if supported == ProfileOpenAICompatible && (endpointType == ProfileOllama || endpointType == ProfileLmStudio) {
+		if supported == ProfileOpenAICompatible && (endpointType == ProfileOllama || endpointType == ProfileLmStudio || endpointType == ProfileLlamaCpp || endpointType == ProfileVLLM || endpointType == ProfileSGLang) {
 			return true
 		}
 	}

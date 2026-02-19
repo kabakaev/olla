@@ -149,11 +149,14 @@ func (s *ModelDiscoveryService) DiscoverEndpoint(ctx context.Context, endpoint *
 	discoveryCtx, cancel := context.WithTimeout(ctx, s.config.Timeout)
 	defer cancel()
 
+	s.logger.Debug("Discovering models for endpoint", "name", endpoint.Name, "url", endpoint.URLString)
 	models, err := s.client.DiscoverModels(discoveryCtx, endpoint)
 	if err != nil {
+		s.logger.Warn("Discovery client failed", "endpoint", endpoint.Name, "error", err)
 		s.handleDiscoveryError(endpoint, err)
 		return err
 	}
+	s.logger.Debug("Discovered models", "endpoint", endpoint.Name, "count", len(models))
 
 	// Reset failure count on success
 	s.resetFailureCount(endpoint.URLString)
@@ -194,6 +197,10 @@ func (s *ModelDiscoveryService) DiscoverEndpoint(ctx context.Context, endpoint *
 
 func (s *ModelDiscoveryService) discoverConcurrently(ctx context.Context, endpoints []*domain.Endpoint) error {
 	workerCount := s.config.ConcurrentWorkers
+	if workerCount <= 0 {
+		workerCount = 5 // Sensible default
+	}
+
 	if workerCount > len(endpoints) {
 		workerCount = len(endpoints)
 	}

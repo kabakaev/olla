@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/thushan/olla/internal/adapter/registry/profile"
 	"github.com/thushan/olla/internal/app/services"
 	"github.com/thushan/olla/internal/config"
 	"github.com/thushan/olla/internal/logger"
@@ -40,9 +41,30 @@ func CreateAndStartServiceManager(ctx context.Context, cfg *config.Config, logge
 // registration followed by dependency injection. This pattern allows circular dependency
 // resolution and ensures services can reference each other without initialisation races.
 func registerServices(manager *services.ServiceManager, cfg *config.Config, logger logger.StyledLogger) error {
+	// Initialize shared components
+	profileFactory, err := profile.NewFactoryWithDefaults()
+	if err != nil {
+		// Fallback to empty factory
+		profileFactory, err = profile.NewFactory("")
+		if err != nil {
+			return fmt.Errorf("failed to create profile factory: %w", err)
+		}
+		logger.Warn("Failed to load profiles from default location, using built-in", "error", err)
+	}
+
 	statsService := services.NewStatsService(logger)
 	if err := manager.Register(statsService); err != nil {
 		return fmt.Errorf("failed to register stats service: %w", err)
+	}
+
+	// Register Management Service
+	managementService := services.NewManagementService(
+		&cfg.Management,
+		logger,
+		profileFactory,
+	)
+	if err := manager.Register(managementService); err != nil {
+		return fmt.Errorf("failed to register management service: %w", err)
 	}
 
 	// Security service requires stats collector, but we defer resolution to avoid
@@ -61,6 +83,7 @@ func registerServices(manager *services.ServiceManager, cfg *config.Config, logg
 		&cfg.ModelRegistry,
 		nil,
 		logger,
+		profileFactory,
 	)
 	if err := manager.Register(discoveryService); err != nil {
 		return fmt.Errorf("failed to register discovery service: %w", err)
@@ -78,6 +101,7 @@ func registerServices(manager *services.ServiceManager, cfg *config.Config, logg
 		&cfg.Server,
 		cfg,
 		logger,
+		profileFactory,
 	)
 	if err := manager.Register(httpService); err != nil {
 		return fmt.Errorf("failed to register HTTP service: %w", err)

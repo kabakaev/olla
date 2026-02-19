@@ -21,6 +21,7 @@ type Config struct {
 	Discovery     DiscoveryConfig     `yaml:"discovery"`
 	Server        ServerConfig        `yaml:"server"`
 	Engineering   EngineeringConfig   `yaml:"engineering"`
+	Management    ManagementConfig    `yaml:"management"`
 }
 
 // ServerConfig holds HTTP server configuration
@@ -98,16 +99,17 @@ type StaticDiscoveryConfig struct {
 
 // EndpointConfig holds configuration for an AI inference endpoint
 type EndpointConfig struct {
-	ModelFilter    *domain.FilterConfig `yaml:"model_filter,omitempty"`
-	URL            string               `yaml:"url"`
-	Name           string               `yaml:"name"`
-	Type           string               `yaml:"type"`
-	HealthCheckURL string               `yaml:"health_check_url"`
-	ModelURL       string               `yaml:"model_url"`
-	CheckInterval  time.Duration        `yaml:"check_interval"`
-	CheckTimeout   time.Duration        `yaml:"check_timeout"`
-	Priority       int                  `yaml:"priority"`
-	PreservePath   bool                 `yaml:"preserve_path"`
+	ModelFilter      *domain.FilterConfig `yaml:"model_filter,omitempty"`
+	URL              string               `yaml:"url"`
+	Name             string               `yaml:"name"`
+	Type             string               `yaml:"type"`
+	HealthCheckURL   string               `yaml:"health_check_url"`
+	ModelURL         string               `yaml:"model_url"`
+	CheckInterval    time.Duration        `yaml:"check_interval"`
+	CheckTimeout     time.Duration        `yaml:"check_timeout"`
+	Priority         int                  `yaml:"priority"`
+	PreservePath     bool                 `yaml:"preserve_path"`
+	MaxContextLength int64                `yaml:"max_context_length"`
 }
 
 // LoggingConfig holds logging configuration
@@ -128,6 +130,14 @@ type ModelRegistryConfig struct {
 	Type            string               `yaml:"type"`
 	Unification     UnificationConfig    `yaml:"unification"`
 	EnableUnifier   bool                 `yaml:"enable_unifier"`
+	Tokenizer       TokenizerConfig      `yaml:"tokenizer"`
+}
+
+// TokenizerConfig holds configuration for the tokenizer
+type TokenizerConfig struct {
+	Type          string        `yaml:"type"` // "auto", "remote", "approx"
+	RemoteURL     string        `yaml:"remote_url"`
+	RemoteTimeout time.Duration `yaml:"remote_timeout"`
 }
 
 // ModelRoutingStrategy configures how models are routed when not all endpoints have them
@@ -342,4 +352,10 @@ func (c *AnthropicTranslatorConfig) Validate() error {
 	}
 
 	return nil
+}
+
+// ManagementConfig holds configuration for the management API
+type ManagementConfig struct {
+	Port  int    `yaml:"port"`
+	Token string `yaml:"token"` // Authentication token (Bearer)
 }

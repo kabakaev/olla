@@ -180,6 +180,7 @@ func (r *StaticEndpointRepository) LoadFromConfig(ctx context.Context, configs [
 			BackoffMultiplier:     1,
 			NextCheckTime:         now,
 			PreservePath:          cfg.PreservePath,
+			MaxContextLength:      cfg.MaxContextLength,
 		}
 
 		newEndpoints[urlString] = newEndpoint
