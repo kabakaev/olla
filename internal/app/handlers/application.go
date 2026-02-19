@@ -10,6 +10,7 @@ import (
 	"github.com/thushan/olla/internal/adapter/inspector"
 	"github.com/thushan/olla/internal/adapter/registry"
 	"github.com/thushan/olla/internal/adapter/registry/profile"
+	"github.com/thushan/olla/internal/adapter/tokenizer"
 	"github.com/thushan/olla/internal/adapter/translator"
 	"github.com/thushan/olla/internal/adapter/translator/anthropic"
 	"github.com/thushan/olla/internal/app/middleware"
@@ -85,6 +86,7 @@ type Application struct {
 	profileLookup      translator.ProfileLookup
 	translatorRegistry *translator.Registry
 	aliasResolver      *registry.AliasResolver
+	tokenizer          ports.Tokenizer
 	server             *http.Server
 	errCh              chan error
 	StartTime          time.Time
@@ -101,18 +103,9 @@ func NewApplication(
 	repository domain.EndpointRepository,
 	securityChain *ports.SecurityChain,
 	logger logger.StyledLogger,
+	profileFactory profile.ProfileFactory,
 ) (*Application, error) {
 	// Create inspector chain
-	profileFactory, err := profile.NewFactoryWithDefaults()
-	if err != nil {
-		// Try to create factory with empty profile dir (uses built-in profiles)
-		profileFactory, err = profile.NewFactory("")
-		if err != nil {
-			logger.Error("Failed to create profile factory", "error", err)
-			return nil, fmt.Errorf("cannot initialize profile factory: %w", err)
-		}
-		logger.Warn("Failed to load profile configurations, using built-in profiles", "error", err)
-	}
 	inspectorFactory := inspector.NewFactory(profileFactory, logger)
 	inspectorChain := inspectorFactory.CreateChain()
 	// Add path inspector
@@ -172,6 +165,16 @@ func NewApplication(
 	// The Factory.GetAnthropicSupport method provides the required functionality
 	profileLookup := profileFactory
 
+	// Initialize tokenizer
+	var tokenizerService ports.Tokenizer
+	if cfg.ModelRegistry.Tokenizer.Type == "remote" && cfg.ModelRegistry.Tokenizer.RemoteURL != "" {
+		tokenizerService = tokenizer.NewRemoteTokenizer(cfg.ModelRegistry.Tokenizer.RemoteURL, cfg.ModelRegistry.Tokenizer.RemoteTimeout)
+		logger.Info("Using remote tokenizer", "url", cfg.ModelRegistry.Tokenizer.RemoteURL)
+	} else {
+		tokenizerService = tokenizer.NewApproxTokenizer()
+		logger.Info("Using approximate tokenizer")
+	}
+
 	return &Application{
 		Config:             cfg,
 		logger:             logger,
@@ -188,6 +191,7 @@ func NewApplication(
 		converterFactory:   converter.NewConverterFactory(),
 		translatorRegistry: translatorRegistry,
 		aliasResolver:      aliasResolver,
+		tokenizer:          tokenizerService,
 		server:             server,
 		errCh:              make(chan error, 1),
 		StartTime:          time.Now(),

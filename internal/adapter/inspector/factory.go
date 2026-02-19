@@ -7,11 +7,11 @@ import (
 )
 
 type Factory struct {
-	profileFactory *profile.Factory
+	profileFactory profile.ProfileFactory
 	logger         logger.StyledLogger
 }
 
-func NewFactory(profileFactory *profile.Factory, logger logger.StyledLogger) *Factory {
+func NewFactory(profileFactory profile.ProfileFactory, logger logger.StyledLogger) *Factory {
 	return &Factory{
 		profileFactory: profileFactory,
 		logger:         logger,
