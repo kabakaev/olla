@@ -60,10 +60,10 @@ builds:
 
 dockers:
   - image_templates:
-      - "ghcr.io/thushan/olla:latest-amd64"
-      - "ghcr.io/thushan/olla:{{ .Tag }}-amd64"
-      - "ghcr.io/thushan/olla:v{{ .Major }}-amd64"
-      - "ghcr.io/thushan/olla:v{{ .Major }}.{{ .Minor }}-amd64"
+      - "ghcr.io/kabakaev/olla:latest-amd64"
+      - "ghcr.io/kabakaev/olla:{{ .Tag }}-amd64"
+      - "ghcr.io/kabakaev/olla:v{{ .Major }}-amd64"
+      - "ghcr.io/kabakaev/olla:v{{ .Major }}.{{ .Minor }}-amd64"
     dockerfile: Dockerfile
     goos: linux
     goarch: amd64
@@ -85,10 +85,10 @@ dockers:
       - config/profiles/
       - logs/.gitkeep
   - image_templates:
-      - "ghcr.io/thushan/olla:latest-arm64"
-      - "ghcr.io/thushan/olla:{{ .Tag }}-arm64"
-      - "ghcr.io/thushan/olla:v{{ .Major }}-arm64"
-      - "ghcr.io/thushan/olla:v{{ .Major }}.{{ .Minor }}-arm64"
+      - "ghcr.io/kabakaev/olla:latest-arm64"
+      - "ghcr.io/kabakaev/olla:{{ .Tag }}-arm64"
+      - "ghcr.io/kabakaev/olla:v{{ .Major }}-arm64"
+      - "ghcr.io/kabakaev/olla:v{{ .Major }}.{{ .Minor }}-arm64"
     dockerfile: Dockerfile
     goos: linux
     goarch: arm64
@@ -111,22 +111,22 @@ dockers:
       - logs/.gitkeep
 
 docker_manifests:
-  - name_template: ghcr.io/thushan/olla:latest
+  - name_template: ghcr.io/kabakaev/olla:latest
     image_templates:
-        - "ghcr.io/thushan/olla:latest-amd64"
-        - "ghcr.io/thushan/olla:latest-arm64"
-  - name_template: ghcr.io/thushan/olla:{{ .Tag }}
+        - "ghcr.io/kabakaev/olla:latest-amd64"
+        - "ghcr.io/kabakaev/olla:latest-arm64"
+  - name_template: ghcr.io/kabakaev/olla:{{ .Tag }}
     image_templates:
-        - "ghcr.io/thushan/olla:{{ .Tag }}-amd64"
-        - "ghcr.io/thushan/olla:{{ .Tag }}-arm64"
-  - name_template: ghcr.io/thushan/olla:v{{ .Major }}
+        - "ghcr.io/kabakaev/olla:{{ .Tag }}-amd64"
+        - "ghcr.io/kabakaev/olla:{{ .Tag }}-arm64"
+  - name_template: ghcr.io/kabakaev/olla:v{{ .Major }}
     image_templates:
-        - "ghcr.io/thushan/olla:v{{ .Major }}-amd64"
-        - "ghcr.io/thushan/olla:v{{ .Major }}-arm64"
-  - name_template: ghcr.io/thushan/olla:v{{ .Major }}.{{ .Minor }}
+        - "ghcr.io/kabakaev/olla:v{{ .Major }}-amd64"
+        - "ghcr.io/kabakaev/olla:v{{ .Major }}-arm64"
+  - name_template: ghcr.io/kabakaev/olla:v{{ .Major }}.{{ .Minor }}
     image_templates:
-        - "ghcr.io/thushan/olla:v{{ .Major }}.{{ .Minor }}-amd64"
-        - "ghcr.io/thushan/olla:v{{ .Major }}.{{ .Minor }}-arm64"
+        - "ghcr.io/kabakaev/olla:v{{ .Major }}.{{ .Minor }}-amd64"
+        - "ghcr.io/kabakaev/olla:v{{ .Major }}.{{ .Minor }}-arm64"
 
 checksum:
   name_template: "checksums.txt"
