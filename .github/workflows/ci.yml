@@ -23,7 +23,7 @@ on:
       - '**/*.txt'
 
 env:
-  GO_VERSION: 1.24.x
+  GO_VERSION: 1.25.x
   GOLANGCILINT_VERSION: "2.11.4"
   BETTERALIGN_VERSION: "0.8.2"
 
@@ -36,7 +36,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        go-version: ['1.24']
+        go-version: ['1.25']
     steps:
       - name: Configure Go
         uses: actions/setup-go@v6
