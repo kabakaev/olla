@@ -50,18 +50,10 @@ jobs:
         with:
           distribution: goreleaser
           version: latest
-          # If it's a tag push, do a full release (which pushes to GHCR).
-          # Otherwise (main push or manual), run as a snapshot.
-          # Note: Snapshots don't push by default. If you want main to auto-push 'latest',
-          # you should push a tag or we can add a dedicated docker push step below.
-          args: ${{ startsWith(github.ref, 'refs/tags/') && 'release --clean' || 'release --snapshot --clean' }}
+          # Tag push: Full release (pushes Docker + creates GitHub release)
+          # Main push: Pushes Docker images but skips validation (no GitHub release without tag)
+          # Manual/other: Local snapshot build only
+          args: ${{ startsWith(github.ref, 'refs/tags/') && 'release --clean' || (github.ref == 'refs/heads/main' && 'release --clean --skip=validate' || 'build --snapshot --clean') }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PWD: ${{ github.workspace }}
-
-      - name: Make container images public
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          # Make the olla container package public
-          gh api -X PATCH /user/packages/container/olla -f visibility=public
