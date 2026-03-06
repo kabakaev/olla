@@ -10,7 +10,6 @@ const (
 	ContextOriginalPathKey = "original_path" // original path before any modifications, useful for logging/debugging
 	ContextKeyStream       = "stream"        // indicates whether the response should be streamed or buffered
 	ContextProviderTypeKey = "provider_type" // the provider type for the request, used for routing and load balancing
-
 	// ContextModelKey carries the resolved model name through the proxy pipeline.
 	// Using a typed key prevents accidental collisions with plain-string keys from
 	// third-party middleware that might also use "model".
@@ -21,9 +20,9 @@ const (
 	ContextStickyKeyKey       = contextKey("sticky-key")        // computed affinity key for this request
 	ContextStickyKeySourceKey = contextKey("sticky-key-source") // which source produced the key
 	ContextStickyOutcomeKey   = contextKey("sticky-outcome")    // *StickyOutcome written by the wrapper
-
 	// ContextModelAliasMapKey stores a map[string]string of endpoint URL → actual model name
 	// when a model alias is resolved, allowing the proxy to rewrite the model name in the
 	// request body to match what the selected backend expects
 	ContextModelAliasMapKey = "model_alias_map"
+	ContextClientIPKey      = "client_ip" // original client IP address for sticky routing
 )
