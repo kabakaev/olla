@@ -36,7 +36,10 @@ type proxyRequest struct {
 func (a *Application) proxyHandler(w http.ResponseWriter, r *http.Request) {
 	pr := a.initializeProxyRequest(r)
 
-	ctx, r := a.setupRequestContext(r, pr.stats)
+	rl := a.Config.Server.RateLimits
+	pr.clientIP = util.GetClientIP(r, rl.TrustProxyHeaders, rl.TrustedProxyCIDRsParsed)
+
+	ctx, r := a.setupRequestContext(r, pr.stats, pr.clientIP)
 
 	a.analyzeRequest(ctx, r, pr)
 
@@ -92,17 +95,15 @@ func (a *Application) initializeProxyRequest(r *http.Request) *proxyRequest {
 	}
 }
 
-func (a *Application) setupRequestContext(r *http.Request, stats *ports.RequestStats) (context.Context, *http.Request) {
+func (a *Application) setupRequestContext(r *http.Request, stats *ports.RequestStats, clientIP string) (context.Context, *http.Request) {
 	ctx := context.WithValue(r.Context(), constants.ContextRequestIdKey, stats.RequestID)
 	ctx = context.WithValue(ctx, constants.ContextRequestTimeKey, stats.StartTime)
+	ctx = context.WithValue(ctx, constants.ContextClientIPKey, clientIP)
 	return ctx, r.WithContext(ctx)
 }
 
 func (a *Application) analyzeRequest(ctx context.Context, r *http.Request, pr *proxyRequest) {
 	pr.requestLogger.Debug("Proxy handler called", "path", r.URL.Path, "method", r.Method)
-
-	rl := a.Config.Server.RateLimits
-	pr.clientIP = util.GetClientIP(r, rl.TrustProxyHeaders, rl.TrustedProxyCIDRsParsed)
 
 	pathResolutionStart := time.Now()
 	pr.targetPath = a.stripRoutePrefix(ctx, r.URL.Path)

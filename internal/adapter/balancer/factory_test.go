@@ -3,10 +3,11 @@ package balancer
 import (
 	"context"
 	"fmt"
-	"github.com/thushan/olla/internal/core/ports"
 	"net/url"
 	"testing"
 	"time"
+
+	"github.com/thushan/olla/internal/core/ports"
 
 	"github.com/thushan/olla/internal/core/domain"
 )
@@ -23,7 +24,7 @@ func TestNewFactory(t *testing.T) {
 	}
 
 	// Test default strategies are registered
-	expectedStrategies := []string{DefaultBalancerPriority, DefaultBalancerRoundRobin, DefaultBalancerLeastConnections}
+	expectedStrategies := []string{DefaultBalancerPriority, DefaultBalancerRoundRobin, DefaultBalancerLeastConnections, DefaultBalancerIPSticky}
 	available := factory.GetAvailableStrategies()
 
 	if len(available) != len(expectedStrategies) {
@@ -55,6 +56,7 @@ func TestFactory_Create_DefaultStrategies(t *testing.T) {
 		{DefaultBalancerPriority, DefaultBalancerPriority, true},
 		{DefaultBalancerRoundRobin, DefaultBalancerRoundRobin, true},
 		{DefaultBalancerLeastConnections, DefaultBalancerLeastConnections, true},
+		{DefaultBalancerIPSticky, DefaultBalancerIPSticky, true},
 		{"unknown-strategy", "", false},
 		{"", "", false},
 	}

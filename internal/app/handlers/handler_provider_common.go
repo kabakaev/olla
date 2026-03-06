@@ -9,6 +9,7 @@ import (
 	"github.com/thushan/olla/internal/core/constants"
 	"github.com/thushan/olla/internal/core/domain"
 	"github.com/thushan/olla/internal/core/ports"
+	"github.com/thushan/olla/internal/util"
 )
 
 // createProviderProfile builds routing constraints for provider-specific requests.
@@ -82,7 +83,10 @@ func (a *Application) providerProxyHandler(w http.ResponseWriter, r *http.Reques
 	ctx = context.WithValue(ctx, constants.ContextRoutePrefixKey, providerPrefix)
 	r = r.WithContext(ctx)
 
-	ctx, r = a.setupRequestContext(r, pr.stats)
+	rl := a.Config.Server.RateLimits
+	pr.clientIP = util.GetClientIP(r, rl.TrustProxyHeaders, rl.TrustedProxyCIDRsParsed)
+
+	ctx, r = a.setupRequestContext(r, pr.stats, pr.clientIP)
 	a.analyzeRequest(ctx, r, pr)
 
 	endpoints, err := a.getProviderEndpoints(ctx, providerType, pr)
