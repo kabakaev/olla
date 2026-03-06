@@ -11,6 +11,7 @@ import (
 const DefaultBalancerPriority = "priority"
 const DefaultBalancerRoundRobin = "round-robin"
 const DefaultBalancerLeastConnections = "least-connections"
+const DefaultBalancerIPSticky = "ip-sticky"
 
 type Factory struct {
 	creators       map[string]func(ports.StatsCollector) domain.EndpointSelector
@@ -32,6 +33,9 @@ func NewFactory(statsCollector ports.StatsCollector) *Factory {
 	})
 	factory.Register(DefaultBalancerLeastConnections, func(collector ports.StatsCollector) domain.EndpointSelector {
 		return NewLeastConnectionsSelector(collector)
+	})
+	factory.Register(DefaultBalancerIPSticky, func(collector ports.StatsCollector) domain.EndpointSelector {
+		return NewIPStickySelector(collector)
 	})
 
 	return factory
