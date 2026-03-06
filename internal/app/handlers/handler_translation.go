@@ -214,7 +214,11 @@ func (a *Application) translationHandler(trans translator.RequestTranslator) htt
 
 	return func(w http.ResponseWriter, r *http.Request) {
 		pr := a.initializeProxyRequest(r)
-		ctx, r := a.setupRequestContext(r, pr.stats)
+
+		rl := a.Config.Server.RateLimits
+		pr.clientIP = util.GetClientIP(r, rl.TrustProxyHeaders, rl.TrustedProxyCIDRsParsed)
+
+		ctx, r := a.setupRequestContext(r, pr.stats, pr.clientIP)
 
 		// Buffer body once -- both passthrough and translation paths need it.
 		// Read maxBodySize+1 to detect oversized requests before JSON parsing
