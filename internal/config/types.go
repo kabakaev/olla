@@ -29,6 +29,7 @@ type Config struct {
 	ModelAliases  map[string][]string `yaml:"model_aliases,omitempty"`
 	Logging       LoggingConfig       `yaml:"logging"`
 	Management    ManagementConfig    `yaml:"management"`
+	Telemetry     TelemetryConfig     `yaml:"telemetry"`
 	Filename      string              `yaml:"-"`
 	ModelRegistry ModelRegistryConfig `yaml:"model_registry"`
 	Translators   TranslatorsConfig   `yaml:"translators"`
@@ -222,6 +223,42 @@ type LoggingConfig struct {
 	Level  string `yaml:"level"`
 	Format string `yaml:"format"`
 	Output string `yaml:"output"`
+}
+
+type TelemetryConfig struct {
+	OTLP           TelemetryOTLPConfig           `yaml:"otlp"`
+	Logs           TelemetryLogsConfig           `yaml:"logs"`
+	ServiceName    string                        `yaml:"service_name"`
+	ServiceVersion string                        `yaml:"service_version"`
+	PayloadCapture TelemetryPayloadCaptureConfig `yaml:"payload_capture"`
+	Enabled        bool                          `yaml:"enabled"`
+	Traces         TelemetrySignalConfig         `yaml:"traces"`
+	Metrics        TelemetrySignalConfig         `yaml:"metrics"`
+}
+
+type TelemetryOTLPConfig struct {
+	Headers          map[string]string `yaml:"headers"`
+	Endpoint         string            `yaml:"endpoint"`
+	Path             string            `yaml:"path"`
+	Protocol         string            `yaml:"protocol"`
+	Insecure         bool              `yaml:"insecure"`
+	SkipHealthTraces bool              `yaml:"skip_health_traces"`
+}
+
+type TelemetrySignalConfig struct {
+	Enabled bool `yaml:"enabled"`
+}
+
+type TelemetryLogsConfig struct {
+	Level   string `yaml:"level"`
+	Enabled bool   `yaml:"enabled"`
+}
+
+type TelemetryPayloadCaptureConfig struct {
+	RedactHeaders    []string `yaml:"redact_headers"`
+	MaxPromptBytes   int      `yaml:"max_prompt_bytes"`
+	MaxResponseBytes int      `yaml:"max_response_bytes"`
+	Enabled          bool     `yaml:"enabled"`
 }
 
 // EngineeringConfig holds development/debugging configuration

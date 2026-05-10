@@ -54,6 +54,9 @@ func TestDefaultConfig(t *testing.T) {
 	if cfg.Engineering.ShowNerdStats != false {
 		t.Error("Expected ShowNerdStats to be false by default")
 	}
+	if cfg.Telemetry.OTLP.Protocol != "grpc" {
+		t.Errorf("Expected telemetry OTLP protocol 'grpc', got %s", cfg.Telemetry.OTLP.Protocol)
+	}
 }
 
 func TestLoadConfig_WithoutFile(t *testing.T) {
@@ -73,12 +76,15 @@ func TestLoadConfig_WithoutFile(t *testing.T) {
 func TestLoadConfig_WithEnvironmentVariables(t *testing.T) {
 	// Set test environment variables
 	testEnvVars := map[string]string{
-		"OLLA_SERVER_PORT":            "8080",
-		"OLLA_SERVER_HOST":            "0.0.0.0",
-		"OLLA_PROXY_LOAD_BALANCER":    "round-robin",
-		"OLLA_LOGGING_LEVEL":          "debug",
-		"OLLA_SHOW_NERD_STATS":        "true",
-		"OLLA_PROXY_RESPONSE_TIMEOUT": "15m",
+		"OLLA_SERVER_PORT":                       "8080",
+		"OLLA_SERVER_HOST":                       "0.0.0.0",
+		"OLLA_PROXY_LOAD_BALANCER":               "round-robin",
+		"OLLA_LOGGING_LEVEL":                     "debug",
+		"OLLA_SHOW_NERD_STATS":                   "true",
+		"OLLA_PROXY_RESPONSE_TIMEOUT":            "15m",
+		"OLLA_TELEMETRY_OTLP_PATH":               "/api/default/otel",
+		"OLLA_TELEMETRY_OTLP_PROTOCOL":           "http",
+		"OLLA_TELEMETRY_OTLP_SKIP_HEALTH_TRACES": "true",
 	}
 
 	// Set env vars
@@ -116,6 +122,29 @@ func TestLoadConfig_WithEnvironmentVariables(t *testing.T) {
 	}
 	if cfg.Proxy.ResponseTimeout != 15*time.Minute {
 		t.Errorf("Expected response timeout 15m from env var, got %v", cfg.Proxy.ResponseTimeout)
+	}
+	if cfg.Telemetry.OTLP.Protocol != "http" {
+		t.Errorf("Expected OTLP protocol http from env var, got %s", cfg.Telemetry.OTLP.Protocol)
+	}
+	if cfg.Telemetry.OTLP.Path != "/api/default/otel" {
+		t.Errorf("Expected OTLP path from env var, got %q", cfg.Telemetry.OTLP.Path)
+	}
+	if !cfg.Telemetry.OTLP.SkipHealthTraces {
+		t.Error("Expected OTLP skip health traces to be true from env var")
+	}
+}
+
+func TestConfigValidate_InvalidTelemetryOTLPProtocol(t *testing.T) {
+	cfg := DefaultConfig()
+	cfg.Telemetry.Enabled = true
+	cfg.Telemetry.OTLP.Protocol = "ftp"
+
+	err := cfg.Validate()
+	if err == nil {
+		t.Fatal("expected validation error for invalid telemetry OTLP protocol")
+	}
+	if got := err.Error(); got != "telemetry.otlp.protocol must be one of \"grpc\" or \"http\", got \"ftp\"" {
+		t.Fatalf("unexpected error: %s", got)
 	}
 }
 

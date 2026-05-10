@@ -21,6 +21,7 @@ import (
 	"github.com/thushan/olla/internal/config"
 	"github.com/thushan/olla/internal/env"
 	"github.com/thushan/olla/internal/logger"
+	"github.com/thushan/olla/internal/telemetry"
 	"github.com/thushan/olla/internal/util"
 	"github.com/thushan/olla/internal/version"
 	"github.com/thushan/olla/pkg/format"
@@ -84,7 +85,10 @@ func main() {
 		fmt.Fprintf(os.Stderr, "Failed to initialise logger: %v\n", err)
 		os.Exit(1)
 	}
-	defer cleanup()
+	loggerCleanup := cleanup
+	defer func() {
+		loggerCleanup()
+	}()
 
 	slog.SetDefault(logInstance)
 
@@ -118,6 +122,42 @@ func main() {
 	}
 
 	styledLogger.Info("Loaded configuration", "config", cfg.Filename)
+
+	telemetryProviders, err := telemetry.InitProviders(ctx, cfg.Telemetry)
+	if err != nil {
+		logger.FatalWithLogger(logInstance, "Failed to initialise telemetry", "error", err)
+	}
+	defer func() {
+		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer shutdownCancel()
+		if serr := telemetryProviders.Shutdown(shutdownCtx); serr != nil {
+			styledLogger.Error("Telemetry shutdown error", "error", serr)
+		}
+	}()
+
+	if telemetryProviders.LoggerProvider != nil {
+		lcfg.OTLP = logger.OTLPConfig{
+			Enabled:        true,
+			Level:          cfg.Telemetry.Logs.Level,
+			LoggerProvider: telemetry.LoggerProvider(telemetryProviders),
+		}
+
+		newLogInstance, newStyledLogger, newCleanup, otlpErr := logger.NewWithTheme(lcfg)
+		if otlpErr != nil {
+			logger.FatalWithLogger(logInstance, "Failed to initialise OTLP log export", "error", otlpErr)
+		}
+
+		oldCleanup := loggerCleanup
+		loggerCleanup = func() {
+			newCleanup()
+			oldCleanup()
+		}
+
+		logInstance = newLogInstance
+		styledLogger = newStyledLogger
+		slog.SetDefault(logInstance)
+		styledLogger.Info("OTLP log export enabled", "level", cfg.Telemetry.Logs.Level, "endpoint", cfg.Telemetry.OTLP.Endpoint)
+	}
 
 	// Create and start service manager
 	serviceManager, err := app.CreateAndStartServiceManager(ctx, cfg, styledLogger)

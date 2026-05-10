@@ -660,16 +660,12 @@ Track requests across:
 
 ### OpenTelemetry Integration
 
-While not built-in, you can add tracing:
+Olla now includes built-in OpenTelemetry support for OTLP traces, token metrics, and log correlation.
 
-```go
-// Wrap handlers with OpenTelemetry
-import "go.opentelemetry.io/otel"
+See:
 
-tracer := otel.Tracer("olla")
-ctx, span := tracer.Start(ctx, "proxy_request")
-defer span.End()
-```
+- [OpenTelemetry](opentelemetry.md) for configuration and exported fields
+- [Configuration Reference](../reference.md) for the raw config schema
 
 ## Capacity Planning
 
