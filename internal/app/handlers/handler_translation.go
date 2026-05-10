@@ -72,7 +72,7 @@ func (a *Application) executePassthroughRequest(
 	// Execute proxy
 	err = a.proxyService.ProxyRequestToEndpoints(ctx, w, r, endpoints, pr.stats, pr.requestLogger)
 
-	a.logRequestResult(pr, err)
+	a.logRequestResult(ctx, pr, err)
 
 	if err != nil {
 		// only write error if response hasn't started
@@ -146,7 +146,7 @@ func (a *Application) executeTranslationRequest(
 		proxyErr = a.executeTranslatedNonStreamingRequest(ctx, w, r, endpoints, pr, trans)
 	}
 
-	a.logRequestResult(pr, proxyErr)
+	a.logRequestResult(ctx, pr, proxyErr)
 
 	if proxyErr != nil {
 		// only write error if response hasn't started
@@ -219,6 +219,7 @@ func (a *Application) translationHandler(trans translator.RequestTranslator) htt
 		pr.clientIP = util.GetClientIP(r, rl.TrustProxyHeaders, rl.TrustedProxyCIDRsParsed)
 
 		ctx, r := a.setupRequestContext(r, pr.stats, pr.clientIP)
+		pr.requestLogger = pr.requestLogger.WithContext(ctx)
 
 		// Buffer body once -- both passthrough and translation paths need it.
 		// Read maxBodySize+1 to detect oversized requests before JSON parsing
@@ -259,6 +260,7 @@ func (a *Application) translationHandler(trans translator.RequestTranslator) htt
 
 		// Run through proxy pipeline (inspector, security, routing)
 		a.analyzeRequest(ctx, r, pr)
+		annotateRequestSpan(ctx, a.Config.Telemetry, pr)
 
 		// Get compatible endpoints for this request
 		endpoints, err := a.getCompatibleEndpoints(ctx, pr)
@@ -267,6 +269,7 @@ func (a *Application) translationHandler(trans translator.RequestTranslator) htt
 			a.recordTranslatorMetrics(trans, pr, constants.TranslatorModeTranslation, constants.FallbackReasonNoCompatibleEndpoints)
 			return
 		}
+		annotateRoutingSpan(ctx, pr, endpoints)
 
 		// OLLA-282: When no endpoints available, Olla hangs until timeout
 		// make sure that we have at least one endpoint available
@@ -337,6 +340,8 @@ func (a *Application) executeTranslatedNonStreamingRequest(
 	}
 
 	// transform and write successful response
+	responseText := recorder.body.String()
+	annotateResponseSpan(ctx, a.Config.Telemetry, pr, responseText)
 	return a.writeTranslatedSuccessResponse(w, ctx, r, recorder, openaiResp, trans)
 }
 
@@ -516,7 +521,7 @@ func (a *Application) executeTranslatedStreamingRequest(
 	a.setModelHeaderIfMissing(w, pr.model)
 
 	// transform stream (blocks until done) and wait for proxy
-	return a.transformStreamAndWaitForProxy(ctx, pipeReader, w, r, proxyErrChan, trans)
+	return a.transformStreamAndWaitForProxy(ctx, pipeReader, w, r, proxyErrChan, trans, pr)
 }
 
 // writeStreamingNoEndpointsError writes error when no endpoints are available for streaming
@@ -664,12 +669,19 @@ func (a *Application) transformStreamAndWaitForProxy(
 	r *http.Request,
 	proxyErrChan chan error,
 	trans translator.RequestTranslator,
+	pr *proxyRequest,
 ) error {
+	writer := newTelemetryCaptureWriter(w, a.Config.Telemetry.PayloadCapture.MaxResponseBytes)
+
 	// transform stream (blocks until done)
-	transformErr := trans.TransformStreamingResponse(ctx, pipeReader, w, r)
+	transformErr := trans.TransformStreamingResponse(ctx, pipeReader, writer, r)
 
 	// Wait for proxy to complete
 	proxyErr := <-proxyErrChan
+
+	if transformErr == nil {
+		annotateResponseSpan(ctx, a.Config.Telemetry, pr, extractHumanReadableCompletion(writer.CapturedString(), true))
+	}
 
 	// return first error, transform errors take precedence
 	if transformErr != nil {

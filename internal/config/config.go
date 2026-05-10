@@ -133,6 +133,34 @@ func DefaultConfig() *Config {
 			Format: "json",
 			Output: "stdout",
 		},
+		Telemetry: TelemetryConfig{
+			Enabled:        false,
+			ServiceName:    "olla",
+			ServiceVersion: "",
+			OTLP: TelemetryOTLPConfig{
+				Endpoint: "localhost:4317",
+				Insecure: true,
+			},
+			Traces: TelemetrySignalConfig{
+				Enabled: true,
+			},
+			Metrics: TelemetrySignalConfig{
+				Enabled: true,
+			},
+			Logs: TelemetryLogsConfig{
+				Enabled: false,
+				Level:   "warn",
+			},
+			PayloadCapture: TelemetryPayloadCaptureConfig{
+				Enabled:          false,
+				MaxPromptBytes:   32 * 1024,
+				MaxResponseBytes: 64 * 1024,
+				RedactHeaders: []string{
+					"authorization",
+					"cookie",
+				},
+			},
+		},
 		Engineering: EngineeringConfig{
 			ShowNerdStats: false,
 		},
@@ -193,6 +221,26 @@ func (c *Config) Validate() error {
 
 	if err := c.Translators.Validate(); err != nil {
 		return fmt.Errorf("translators config invalid: %w", err)
+	}
+
+	if c.Telemetry.Enabled {
+		if c.Telemetry.ServiceName == "" {
+			return fmt.Errorf("telemetry.service_name must not be empty when telemetry is enabled")
+		}
+		if c.Telemetry.Traces.Enabled || c.Telemetry.Metrics.Enabled || c.Telemetry.Logs.Enabled {
+			if c.Telemetry.OTLP.Endpoint == "" {
+				return fmt.Errorf("telemetry.otlp.endpoint must not be empty when telemetry export is enabled")
+			}
+		}
+		if c.Telemetry.Logs.Enabled && c.Telemetry.Logs.Level == "" {
+			return fmt.Errorf("telemetry.logs.level must not be empty when telemetry logs export is enabled")
+		}
+		if c.Telemetry.PayloadCapture.MaxPromptBytes < 0 {
+			return fmt.Errorf("telemetry.payload_capture.max_prompt_bytes must be >= 0")
+		}
+		if c.Telemetry.PayloadCapture.MaxResponseBytes < 0 {
+			return fmt.Errorf("telemetry.payload_capture.max_response_bytes must be >= 0")
+		}
 	}
 
 	return nil
@@ -426,6 +474,59 @@ func applyEnvOverrides(config *Config) {
 	}
 	if val := os.Getenv("OLLA_MANAGEMENT_TOKEN"); val != "" {
 		config.Management.Token = val
+	}
+
+	if val := os.Getenv("OLLA_TELEMETRY_ENABLED"); val != "" {
+		if enabled, err := strconv.ParseBool(val); err == nil {
+			config.Telemetry.Enabled = enabled
+		}
+	}
+	if val := os.Getenv("OLLA_TELEMETRY_SERVICE_NAME"); val != "" {
+		config.Telemetry.ServiceName = val
+	}
+	if val := os.Getenv("OLLA_TELEMETRY_SERVICE_VERSION"); val != "" {
+		config.Telemetry.ServiceVersion = val
+	}
+	if val := os.Getenv("OLLA_TELEMETRY_OTLP_ENDPOINT"); val != "" {
+		config.Telemetry.OTLP.Endpoint = val
+	}
+	if val := os.Getenv("OLLA_TELEMETRY_OTLP_INSECURE"); val != "" {
+		if insecure, err := strconv.ParseBool(val); err == nil {
+			config.Telemetry.OTLP.Insecure = insecure
+		}
+	}
+	if val := os.Getenv("OLLA_TELEMETRY_TRACES_ENABLED"); val != "" {
+		if enabled, err := strconv.ParseBool(val); err == nil {
+			config.Telemetry.Traces.Enabled = enabled
+		}
+	}
+	if val := os.Getenv("OLLA_TELEMETRY_METRICS_ENABLED"); val != "" {
+		if enabled, err := strconv.ParseBool(val); err == nil {
+			config.Telemetry.Metrics.Enabled = enabled
+		}
+	}
+	if val := os.Getenv("OLLA_TELEMETRY_LOGS_ENABLED"); val != "" {
+		if enabled, err := strconv.ParseBool(val); err == nil {
+			config.Telemetry.Logs.Enabled = enabled
+		}
+	}
+	if val := os.Getenv("OLLA_TELEMETRY_LOGS_LEVEL"); val != "" {
+		config.Telemetry.Logs.Level = val
+	}
+	if val := os.Getenv("OLLA_TELEMETRY_PAYLOAD_CAPTURE_ENABLED"); val != "" {
+		if enabled, err := strconv.ParseBool(val); err == nil {
+			config.Telemetry.PayloadCapture.Enabled = enabled
+		}
+	}
+	if val := os.Getenv("OLLA_TELEMETRY_PAYLOAD_CAPTURE_MAX_PROMPT_BYTES"); val != "" {
+		if size, err := strconv.Atoi(val); err == nil {
+			config.Telemetry.PayloadCapture.MaxPromptBytes = size
+		}
+	}
+	if val := os.Getenv("OLLA_TELEMETRY_PAYLOAD_CAPTURE_MAX_RESPONSE_BYTES"); val != "" {
+		if size, err := strconv.Atoi(val); err == nil {
+			config.Telemetry.PayloadCapture.MaxResponseBytes = size
+		}
 	}
 }
 

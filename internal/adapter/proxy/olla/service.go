@@ -382,6 +382,7 @@ func (s *Service) proxyToSingleEndpointLegacy(ctx context.Context, w http.Respon
 	}
 
 	stats.EndpointName = endpoint.Name
+	stats.EndpointType = endpoint.Type
 	reqCtx.endpoint = endpoint.Name
 
 	// Track connections
