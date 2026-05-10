@@ -54,6 +54,7 @@ type RequestStats struct {
 	RequestID    string
 	Model        string
 	EndpointName string
+	EndpointType string
 	TargetUrl    string
 	TotalBytes   int
 

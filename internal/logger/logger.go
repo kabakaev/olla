@@ -9,6 +9,9 @@ import (
 	"strings"
 
 	"github.com/pterm/pterm"
+	"go.opentelemetry.io/contrib/bridges/otelslog"
+	otellog "go.opentelemetry.io/otel/log"
+	"go.opentelemetry.io/otel/trace"
 	"gopkg.in/natefinch/lumberjack.v2"
 
 	"github.com/thushan/olla/internal/util"
@@ -24,6 +27,13 @@ type Config struct {
 	MaxAge     int // days
 	FileOutput bool
 	PrettyLogs bool
+	OTLP       OTLPConfig
+}
+
+type OTLPConfig struct {
+	Enabled        bool
+	Level          string
+	LoggerProvider otellog.LoggerProvider
 }
 
 const (
@@ -72,11 +82,22 @@ func New(cfg *Config) (*slog.Logger, func(), error) {
 		handlers = append(handlers, fileHandler)
 	}
 
+	if cfg.OTLP.Enabled && cfg.OTLP.LoggerProvider != nil {
+		handlers = append(handlers, &levelFilterHandler{
+			level: parseLevel(cfg.OTLP.Level),
+			handler: otelslog.NewHandler(
+				"github.com/thushan/olla",
+				otelslog.WithLoggerProvider(cfg.OTLP.LoggerProvider),
+				otelslog.WithSource(false),
+			),
+		})
+	}
+
 	var logger *slog.Logger
 	if len(handlers) == 1 {
-		logger = slog.New(handlers[0])
+		logger = slog.New(&traceContextHandler{handler: handlers[0]})
 	} else {
-		logger = slog.New(&multiHandler{handlers: handlers})
+		logger = slog.New(&traceContextHandler{handler: &multiHandler{handlers: handlers}})
 	}
 
 	cleanup := func() {
@@ -182,6 +203,35 @@ func (h *multiHandler) Enabled(ctx context.Context, level slog.Level) bool {
 	return false
 }
 
+type traceContextHandler struct {
+	handler slog.Handler
+}
+
+func (h *traceContextHandler) Enabled(ctx context.Context, level slog.Level) bool {
+	return h.handler.Enabled(ctx, level)
+}
+
+func (h *traceContextHandler) Handle(ctx context.Context, record slog.Record) error {
+	if span := trace.SpanFromContext(ctx); span != nil {
+		sc := span.SpanContext()
+		if sc.IsValid() {
+			record.AddAttrs(
+				slog.String("trace_id", sc.TraceID().String()),
+				slog.String("span_id", sc.SpanID().String()),
+			)
+		}
+	}
+	return h.handler.Handle(ctx, record)
+}
+
+func (h *traceContextHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
+	return &traceContextHandler{handler: h.handler.WithAttrs(attrs)}
+}
+
+func (h *traceContextHandler) WithGroup(name string) slog.Handler {
+	return &traceContextHandler{handler: h.handler.WithGroup(name)}
+}
+
 func (h *multiHandler) Handle(ctx context.Context, record slog.Record) error {
 	for _, handler := range h.handlers {
 		if handler.Enabled(ctx, record.Level) {
@@ -234,6 +284,33 @@ func (h *terminalFilterHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
 
 func (h *terminalFilterHandler) WithGroup(name string) slog.Handler {
 	return &terminalFilterHandler{handler: h.handler.WithGroup(name)}
+}
+
+type levelFilterHandler struct {
+	level   slog.Level
+	handler slog.Handler
+}
+
+func (h *levelFilterHandler) Enabled(ctx context.Context, level slog.Level) bool {
+	if level < h.level {
+		return false
+	}
+	return h.handler.Enabled(ctx, level)
+}
+
+func (h *levelFilterHandler) Handle(ctx context.Context, record slog.Record) error {
+	if record.Level < h.level {
+		return nil
+	}
+	return h.handler.Handle(ctx, record)
+}
+
+func (h *levelFilterHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
+	return &levelFilterHandler{level: h.level, handler: h.handler.WithAttrs(attrs)}
+}
+
+func (h *levelFilterHandler) WithGroup(name string) slog.Handler {
+	return &levelFilterHandler{level: h.level, handler: h.handler.WithGroup(name)}
 }
 
 // isDetailedLog checks if a log should only go to files (not terminal)
