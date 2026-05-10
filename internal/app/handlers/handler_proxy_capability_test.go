@@ -289,7 +289,7 @@ func TestFilterEndpointsByProfile_WithCapabilities(t *testing.T) {
 			SupportedBy: []string{domain.ProfileOllama, domain.ProfileOpenAICompatible},
 		}
 
-		filtered := app.filterEndpointsByProfile(endpoints, profile, styledLog)
+		filtered := app.filterEndpointsByProfile(context.Background(), endpoints, profile, styledLog)
 
 		// Should return only endpoint1 (has llava:13b with vision)
 		assert.Len(t, filtered, 1)
@@ -305,7 +305,7 @@ func TestFilterEndpointsByProfile_WithCapabilities(t *testing.T) {
 			SupportedBy: []string{domain.ProfileOllama, domain.ProfileOpenAICompatible},
 		}
 
-		filtered := app.filterEndpointsByProfile(endpoints, profile, styledLog)
+		filtered := app.filterEndpointsByProfile(context.Background(), endpoints, profile, styledLog)
 
 		// Should return all compatible endpoints since no capability match
 		assert.Len(t, filtered, 3)

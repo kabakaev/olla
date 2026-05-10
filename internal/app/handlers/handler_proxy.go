@@ -3,9 +3,11 @@ package handlers
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/thushan/olla/internal/adapter/balancer"
@@ -43,8 +45,10 @@ func (a *Application) proxyHandler(w http.ResponseWriter, r *http.Request) {
 	pr.clientIP = util.GetClientIP(r, rl.TrustProxyHeaders, rl.TrustedProxyCIDRsParsed)
 
 	ctx, r := a.setupRequestContext(r, pr.stats, pr.clientIP)
+	pr.requestLogger = pr.requestLogger.WithContext(ctx)
 
 	a.analyzeRequest(ctx, r, pr)
+	annotateRequestSpan(ctx, a.Config.Telemetry, pr)
 
 	// Sticky session key must be computed after analyzeRequest so the model
 	// name is available; inject into context before endpoint selection.
@@ -58,6 +62,7 @@ func (a *Application) proxyHandler(w http.ResponseWriter, r *http.Request) {
 		a.handleEndpointError(w, pr, err)
 		return
 	}
+	annotateRoutingSpan(ctx, pr, endpoints)
 
 	a.logRequestStart(pr, len(endpoints))
 
@@ -67,9 +72,19 @@ func (a *Application) proxyHandler(w http.ResponseWriter, r *http.Request) {
 	// so its StripPrefix is a no-op. This mirrors providerProxyHandler (line 100).
 	r.URL.Path = pr.targetPath
 
-	err = a.executeProxyRequest(ctx, w, r, endpoints, pr)
+	responseWriter := w
+	var capture *telemetryCaptureWriter
+	if a.Config.Telemetry.PayloadCapture.Enabled {
+		capture = newTelemetryCaptureWriter(w, a.Config.Telemetry.PayloadCapture.MaxResponseBytes)
+		responseWriter = capture
+	}
 
-	a.logRequestResult(pr, err)
+	err = a.executeProxyRequest(ctx, responseWriter, r, endpoints, pr)
+	if err == nil && capture != nil {
+		annotateResponseSpan(ctx, a.Config.Telemetry, pr, extractHumanReadableCompletion(capture.CapturedString(), pr.isStreaming))
+	}
+
+	a.logRequestResult(ctx, pr, err)
 
 	if err != nil {
 		a.handleProxyError(w, err)
@@ -140,6 +155,13 @@ func (a *Application) analyzeRequest(ctx context.Context, r *http.Request, pr *p
 				pr.requestLogger.Warn("Failed to count tokens", "error", err)
 			}
 		}
+	}
+
+	if profile != nil && profile.ModelCapabilities != nil {
+		pr.isStreaming = profile.ModelCapabilities.StreamingSupport
+	}
+	if stream, ok := detectStreamingPreference(r); ok {
+		pr.isStreaming = stream
 	}
 
 	pr.stats.PathResolutionMs = time.Since(pathResolutionStart).Milliseconds()
@@ -220,6 +242,30 @@ func (a *Application) setStickyResponseHeaders(w http.ResponseWriter, r *http.Re
 	}
 }
 
+func detectStreamingPreference(r *http.Request) (bool, bool) {
+	if r.Body == nil || r.ContentLength == 0 {
+		return false, false
+	}
+	contentType := strings.ToLower(r.Header.Get(constants.HeaderContentType))
+	if !strings.Contains(contentType, constants.ContentTypeJSON) {
+		return false, false
+	}
+
+	body, err := io.ReadAll(io.LimitReader(r.Body, 1024*1024))
+	if err != nil {
+		return false, false
+	}
+	r.Body = io.NopCloser(io.MultiReader(bytes.NewReader(body), r.Body))
+
+	var payload map[string]any
+	if err := json.Unmarshal(body, &payload); err != nil {
+		return false, false
+	}
+
+	stream, ok := payload["stream"].(bool)
+	return stream, ok
+}
+
 func (a *Application) getCompatibleEndpoints(ctx context.Context, pr *proxyRequest) ([]*domain.Endpoint, error) {
 	endpoints, err := a.discoveryService.GetHealthyEndpoints(ctx)
 	if err != nil {
@@ -227,7 +273,7 @@ func (a *Application) getCompatibleEndpoints(ctx context.Context, pr *proxyReque
 		return nil, fmt.Errorf("no healthy endpoints available: %w", err)
 	}
 
-	compatibleEndpoints := a.filterEndpointsByProfile(endpoints, pr.profile, pr.requestLogger)
+	compatibleEndpoints := a.filterEndpointsByProfile(ctx, endpoints, pr.profile, pr.requestLogger)
 
 	// Apply context length filtering if we have token count
 	if pr.tokenCount > 0 {
@@ -285,13 +331,18 @@ func (a *Application) logRequestStart(pr *proxyRequest, endpointCount int) {
 	pr.requestLogger.Debug("Request details", debugFields...)
 }
 
-func (a *Application) logRequestResult(pr *proxyRequest, err error) {
+func (a *Application) logRequestResult(ctx context.Context, pr *proxyRequest, err error) {
 	duration := time.Since(pr.stats.StartTime)
+	pr.stats.Latency = duration.Milliseconds()
 
 	if err != nil {
+		annotateResponseSpan(ctx, a.Config.Telemetry, pr, "")
+		recordOTelMetrics(ctx, pr, "error")
 		logFields := a.buildLogFields(pr, duration)
 		pr.requestLogger.Error("Request failed", append([]any{"error", err}, logFields...)...)
 	} else {
+		annotateResponseSpan(ctx, a.Config.Telemetry, pr, "")
+		recordOTelMetrics(ctx, pr, "success")
 		// Log essential completion info at INFO level
 		infoFields := []any{
 			"endpoint", pr.stats.EndpointName,
@@ -417,7 +468,7 @@ func (a *Application) stripRoutePrefix(ctx context.Context, path string) string 
 // three-stage filtering pipeline that progressively narrows down endpoints.
 // starts broad (platform compatibility), then capabilities (vision, embeddings),
 // finally specific model availability. each stage falls back gracefully.
-func (a *Application) filterEndpointsByProfile(endpoints []*domain.Endpoint, profile *domain.RequestProfile, logger logger.StyledLogger) []*domain.Endpoint {
+func (a *Application) filterEndpointsByProfile(ctx context.Context, endpoints []*domain.Endpoint, profile *domain.RequestProfile, logger logger.StyledLogger) []*domain.Endpoint {
 	var profileFiltered []*domain.Endpoint
 
 	// stage 1: platform compatibility (ollama can't handle openai requests etc)
@@ -462,8 +513,6 @@ func (a *Application) filterEndpointsByProfile(endpoints []*domain.Endpoint, pro
 
 	// stage 3: specific model filtering using routing strategy
 	if profile != nil && profile.ModelName != "" && a.modelRegistry != nil {
-		ctx := context.Background()
-
 		// aliases map one name to multiple backend-specific models, so they
 		// need dedicated resolution rather than the standard single-model path
 		if a.aliasResolver != nil && a.aliasResolver.IsAlias(profile.ModelName) {

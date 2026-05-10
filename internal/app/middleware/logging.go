@@ -13,6 +13,8 @@ import (
 	"github.com/thushan/olla/internal/util"
 
 	"github.com/thushan/olla/internal/logger"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 )
 
 // Context keys for request ID and logger
@@ -97,9 +99,18 @@ func EnhancedLoggingMiddleware(styledLogger logger.StyledLogger) func(http.Handl
 
 			// Add to context for propagation
 			ctx := context.WithValue(r.Context(), RequestIDKey, requestID)
+			if span := trace.SpanFromContext(ctx); span != nil {
+				span.SetAttributes(attribute.String("request.id", requestID))
+			}
 
 			// Create a base logger with request ID
 			baseLogger := slog.Default().With(constants.ContextRequestIdKey, requestID)
+			if span := trace.SpanFromContext(ctx); span != nil {
+				sc := span.SpanContext()
+				if sc.IsValid() {
+					baseLogger = baseLogger.With("trace_id", sc.TraceID().String(), "span_id", sc.SpanID().String())
+				}
+			}
 			ctx = context.WithValue(ctx, LoggerKey, baseLogger)
 
 			// Add to response header for client tracking
@@ -121,10 +132,10 @@ func EnhancedLoggingMiddleware(styledLogger logger.StyledLogger) func(http.Handl
 
 			if IsProxyRequest(r.URL.Path) {
 				// For proxy requests, just log at debug level since handler will log INFO
-				baseLogger.Debug("HTTP request started", logFields...)
+				baseLogger.DebugContext(ctx, "HTTP request started", logFields...)
 			} else {
 				// For non-proxy requests (health, status, etc), log at INFO
-				baseLogger.Info("Request started", logFields...)
+				baseLogger.InfoContext(ctx, "Request started", logFields...)
 			}
 
 			next.ServeHTTP(wrapped, r.WithContext(ctx))
@@ -145,10 +156,10 @@ func EnhancedLoggingMiddleware(styledLogger logger.StyledLogger) func(http.Handl
 
 			if IsProxyRequest(r.URL.Path) {
 				// For proxy requests, just log at debug level since handler will log INFO
-				baseLogger.Debug("HTTP request completed", completionFields...)
+				baseLogger.DebugContext(ctx, "HTTP request completed", completionFields...)
 			} else {
 				// For non-proxy requests, log at INFO
-				baseLogger.Info("Request completed", completionFields...)
+				baseLogger.InfoContext(ctx, "Request completed", completionFields...)
 			}
 		})
 	}
@@ -184,7 +195,7 @@ func AccessLoggingMiddleware(styledLogger logger.StyledLogger) func(http.Handler
 			detailedCtx := context.WithValue(r.Context(), logger.DefaultDetailedCookie, true)
 
 			// Log detailed access information (file only)
-			baseLogger := slog.Default()
+			baseLogger := GetLogger(r.Context())
 			baseLogger.InfoContext(detailedCtx, "Access log",
 				"timestamp", start.Format(time.RFC3339),
 				"request_id", requestID,

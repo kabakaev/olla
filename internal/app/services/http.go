@@ -9,6 +9,7 @@ import (
 
 	"github.com/thushan/olla/internal/adapter/registry/profile"
 	"github.com/thushan/olla/internal/app/handlers"
+	"github.com/thushan/olla/internal/app/middleware"
 	"github.com/thushan/olla/internal/config"
 	"github.com/thushan/olla/internal/core/domain"
 	"github.com/thushan/olla/internal/core/ports"
@@ -142,8 +143,11 @@ func (s *HTTPService) Start(ctx context.Context) error {
 	routeRegistry.WireUpWithSecurityChain(mux, securityAdapters)
 
 	s.server = &http.Server{
-		Addr:         s.config.GetAddress(),
-		Handler:      mux,
+		Addr: s.config.GetAddress(),
+		Handler: middleware.TelemetryMiddleware(
+			s.fullConfig.Server.RateLimits.TrustProxyHeaders,
+			s.fullConfig.Server.RateLimits.TrustedProxyCIDRsParsed,
+		)(mux),
 		ReadTimeout:  readTimeout,
 		WriteTimeout: writeTimeout,
 		IdleTimeout:  idleTimeout,

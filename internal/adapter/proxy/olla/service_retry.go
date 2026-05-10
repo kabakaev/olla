@@ -52,6 +52,7 @@ func (s *Service) ProxyRequestToEndpointsWithRetry(ctx context.Context, w http.R
 // proxyToSingleEndpoint handles proxying to a single endpoint with Olla's optimizations
 func (s *Service) proxyToSingleEndpoint(ctx context.Context, w http.ResponseWriter, r *http.Request, endpoint *domain.Endpoint, stats *ports.RequestStats, rlog logger.StyledLogger) error {
 	stats.EndpointName = endpoint.Name
+	stats.EndpointType = endpoint.Type
 
 	// Check circuit breaker first
 	cb := s.GetCircuitBreaker(endpoint.Name)
