@@ -14,6 +14,7 @@ import (
 // PlainStyledLogger implements StyledLogger without formatting
 type PlainStyledLogger struct {
 	logger *slog.Logger
+	ctx    context.Context
 }
 
 func NewPlainStyledLogger(logger *slog.Logger) *PlainStyledLogger {
@@ -29,18 +30,50 @@ func (sl *PlainStyledLogger) InfoWithStatus(msg string, status string, args ...a
 	sl.logger.Info(styledMsg, args...)
 }
 func (sl *PlainStyledLogger) Debug(msg string, args ...any) {
+	sl.DebugCtx(sl.ctx, msg, args...)
+}
+
+func (sl *PlainStyledLogger) DebugCtx(ctx context.Context, msg string, args ...any) {
+	if ctx != nil {
+		sl.logger.DebugContext(ctx, msg, args...)
+		return
+	}
 	sl.logger.Debug(msg, args...)
 }
 
 func (sl *PlainStyledLogger) Info(msg string, args ...any) {
+	sl.InfoCtx(sl.ctx, msg, args...)
+}
+
+func (sl *PlainStyledLogger) InfoCtx(ctx context.Context, msg string, args ...any) {
+	if ctx != nil {
+		sl.logger.InfoContext(ctx, msg, args...)
+		return
+	}
 	sl.logger.Info(msg, args...)
 }
 
 func (sl *PlainStyledLogger) Warn(msg string, args ...any) {
+	sl.WarnCtx(sl.ctx, msg, args...)
+}
+
+func (sl *PlainStyledLogger) WarnCtx(ctx context.Context, msg string, args ...any) {
+	if ctx != nil {
+		sl.logger.WarnContext(ctx, msg, args...)
+		return
+	}
 	sl.logger.Warn(msg, args...)
 }
 
 func (sl *PlainStyledLogger) Error(msg string, args ...any) {
+	sl.ErrorCtx(sl.ctx, msg, args...)
+}
+
+func (sl *PlainStyledLogger) ErrorCtx(ctx context.Context, msg string, args ...any) {
+	if ctx != nil {
+		sl.logger.ErrorContext(ctx, msg, args...)
+		return
+	}
 	sl.logger.Error(msg, args...)
 }
 
@@ -117,6 +150,13 @@ func (sl *PlainStyledLogger) WithRequestID(requestID string) StyledLogger {
 	return sl.With(constants.ContextRequestIdKey, requestID)
 }
 
+func (sl *PlainStyledLogger) WithContext(ctx context.Context) StyledLogger {
+	return &PlainStyledLogger{
+		logger: sl.logger,
+		ctx:    ctx,
+	}
+}
+
 func (sl *PlainStyledLogger) InfoConfigChange(oldName, newName string) {
 	styledMsg := fmt.Sprintf("Endpoint configuration changed for %s to: %s", oldName, newName)
 	sl.logger.Info(styledMsg)
@@ -130,12 +170,14 @@ func (sl *PlainStyledLogger) WithAttrs(attrs ...slog.Attr) StyledLogger {
 
 	return &PlainStyledLogger{
 		logger: sl.logger.With(args...),
+		ctx:    sl.ctx,
 	}
 }
 
 func (sl *PlainStyledLogger) With(args ...any) StyledLogger {
 	return &PlainStyledLogger{
 		logger: sl.logger.With(args...),
+		ctx:    sl.ctx,
 	}
 }
 
@@ -158,11 +200,11 @@ func (sl *PlainStyledLogger) logWithContext(level string, msg string, endpoint s
 
 	switch level {
 	case LogLevelInfo:
-		sl.logger.Info(styledMsg, ctx.UserArgs...)
+		sl.InfoCtx(sl.ctx, styledMsg, ctx.UserArgs...)
 	case LogLevelWarn:
-		sl.logger.Warn(styledMsg, ctx.UserArgs...)
+		sl.WarnCtx(sl.ctx, styledMsg, ctx.UserArgs...)
 	case LogLevelError:
-		sl.logger.Error(styledMsg, ctx.UserArgs...)
+		sl.ErrorCtx(sl.ctx, styledMsg, ctx.UserArgs...)
 	}
 
 	// log file: detailed hopefully

@@ -37,7 +37,7 @@ func TestFilterEndpointsByProfile_FailClosedOnNoMatch(t *testing.T) {
 		FailClosedOnNoMatch: true,
 	}
 
-	filtered := app.filterEndpointsByProfile(endpoints, profile, styledLog)
+	filtered := app.filterEndpointsByProfile(context.Background(), endpoints, profile, styledLog)
 	if len(filtered) != 0 {
 		t.Fatalf("expected zero endpoints when a provider-scoped profile has no type match, got %d: %v", len(filtered), filtered)
 	}
@@ -66,7 +66,7 @@ func TestFilterEndpointsByProfile_WidensWhenNotFailClosed(t *testing.T) {
 		// FailClosedOnNoMatch deliberately left false.
 	}
 
-	filtered := app.filterEndpointsByProfile(endpoints, profile, styledLog)
+	filtered := app.filterEndpointsByProfile(context.Background(), endpoints, profile, styledLog)
 	if len(filtered) != 1 {
 		t.Fatalf("expected the inclusive profile to widen to the one available endpoint, got %d: %v", len(filtered), filtered)
 	}

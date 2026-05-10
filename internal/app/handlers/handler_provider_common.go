@@ -98,7 +98,9 @@ func (a *Application) providerProxyHandler(w http.ResponseWriter, r *http.Reques
 	pr.clientIP = util.GetClientIP(r, rl.TrustProxyHeaders, rl.TrustedProxyCIDRsParsed)
 
 	ctx, r = a.setupRequestContext(r, pr.stats, pr.clientIP)
+	pr.requestLogger = pr.requestLogger.WithContext(ctx)
 	a.analyzeRequest(ctx, r, pr)
+	annotateRequestSpan(ctx, a.telemetryConfig(), pr)
 
 	// Sticky session key must be computed after analyzeRequest so the model name
 	// is populated; inject into context before endpoint selection so the sticky
@@ -130,7 +132,7 @@ func (a *Application) getProviderEndpoints(ctx context.Context, providerType str
 	providerProfile := a.createProviderProfile(providerType)
 	providerProfile.Path = pr.targetPath
 
-	providerEndpoints := a.filterEndpointsByProfile(endpoints, providerProfile, pr.requestLogger)
+	providerEndpoints := a.filterEndpointsByProfile(ctx, endpoints, providerProfile, pr.requestLogger)
 
 	if providerProfile.FailClosedOnNoMatch && len(providerEndpoints) == 0 {
 		// The provider-type filter itself found nothing - short-circuit before
@@ -150,7 +152,7 @@ func (a *Application) getProviderEndpoints(ctx context.Context, providerType str
 	// If the request has specific requirements (e.g., needs vision support),
 	// apply those filters on top of the provider constraint
 	if pr.profile != nil && len(pr.profile.SupportedBy) > 0 {
-		providerEndpoints = a.filterEndpointsByProfile(providerEndpoints, pr.profile, pr.requestLogger)
+		providerEndpoints = a.filterEndpointsByProfile(ctx, providerEndpoints, pr.profile, pr.requestLogger)
 	}
 
 	// Apply context length filtering if we have token count

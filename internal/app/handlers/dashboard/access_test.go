@@ -1,6 +1,7 @@
 package dashboard
 
 import (
+	"context"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -19,9 +20,13 @@ import (
 type stubLogger struct{}
 
 func (stubLogger) Debug(msg string, args ...any)                                {}
+func (stubLogger) DebugCtx(ctx context.Context, msg string, args ...any)        {}
 func (stubLogger) Info(msg string, args ...any)                                 {}
+func (stubLogger) InfoCtx(ctx context.Context, msg string, args ...any)         {}
 func (stubLogger) Warn(msg string, args ...any)                                 {}
+func (stubLogger) WarnCtx(ctx context.Context, msg string, args ...any)         {}
 func (stubLogger) Error(msg string, args ...any)                                {}
+func (stubLogger) ErrorCtx(ctx context.Context, msg string, args ...any)        {}
 func (stubLogger) ResetLine()                                                   {}
 func (stubLogger) InfoWithStatus(msg string, status string, args ...any)        {}
 func (stubLogger) InfoWithCount(msg string, count int, args ...any)             {}
@@ -35,6 +40,7 @@ func (stubLogger) InfoHealthStatus(msg string, name string, status domain.Endpoi
 }
 func (stubLogger) GetUnderlying() *slog.Logger                                         { return slog.Default() }
 func (stubLogger) WithRequestID(requestID string) logger.StyledLogger                  { return nil }
+func (stubLogger) WithContext(ctx context.Context) logger.StyledLogger                 { return nil }
 func (stubLogger) InfoConfigChange(oldName, newName string)                            {}
 func (stubLogger) WithAttrs(attrs ...slog.Attr) logger.StyledLogger                    { return nil }
 func (stubLogger) With(args ...any) logger.StyledLogger                                { return nil }

@@ -52,6 +52,7 @@ func (s *Service) ProxyRequestToEndpointsWithRetry(ctx context.Context, w http.R
 // proxyToSingleEndpoint handles proxying to a single endpoint with Olla's optimizations
 func (s *Service) proxyToSingleEndpoint(ctx context.Context, w http.ResponseWriter, r *http.Request, endpoint *domain.Endpoint, stats *ports.RequestStats, rlog logger.StyledLogger) error {
 	stats.EndpointName = endpoint.Name
+	stats.EndpointType = endpoint.Type
 
 	// The model actually dispatched to this endpoint, resolved from the alias
 	// map up front so every RecordSuccess/RecordFailure call below (including

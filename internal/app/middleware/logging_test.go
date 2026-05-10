@@ -438,9 +438,13 @@ type mockStyledLogger struct {
 }
 
 func (m *mockStyledLogger) Debug(msg string, args ...any)                                {}
+func (m *mockStyledLogger) DebugCtx(ctx context.Context, msg string, args ...any)        {}
 func (m *mockStyledLogger) Info(msg string, args ...any)                                 {}
+func (m *mockStyledLogger) InfoCtx(ctx context.Context, msg string, args ...any)         {}
 func (m *mockStyledLogger) Warn(msg string, args ...any)                                 {}
+func (m *mockStyledLogger) WarnCtx(ctx context.Context, msg string, args ...any)         {}
 func (m *mockStyledLogger) Error(msg string, args ...any)                                {}
+func (m *mockStyledLogger) ErrorCtx(ctx context.Context, msg string, args ...any)        {}
 func (m *mockStyledLogger) ResetLine()                                                   {}
 func (m *mockStyledLogger) InfoWithStatus(msg string, status string, args ...any)        {}
 func (m *mockStyledLogger) InfoWithCount(msg string, count int, args ...any)             {}
@@ -459,6 +463,7 @@ func (m *mockStyledLogger) GetUnderlying() *slog.Logger {
 	return slog.Default()
 }
 func (m *mockStyledLogger) WithRequestID(requestID string) logger.StyledLogger                  { return m }
+func (m *mockStyledLogger) WithContext(ctx context.Context) logger.StyledLogger                 { return m }
 func (m *mockStyledLogger) InfoConfigChange(oldName, newName string)                            {}
 func (m *mockStyledLogger) WithAttrs(attrs ...slog.Attr) logger.StyledLogger                    { return m }
 func (m *mockStyledLogger) With(args ...any) logger.StyledLogger                                { return m }

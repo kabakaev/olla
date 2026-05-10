@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"net/url"
 	"testing"
 	"time"
@@ -32,6 +33,7 @@ func (c *capturingLogger) Info(msg string, args ...any) {
 // WithRequestID must return the capturingLogger itself, not the embedded mockStyledLogger,
 // so that pr.requestLogger.Info routes back through our capturing implementation.
 func (c *capturingLogger) WithRequestID(_ string) logger.StyledLogger { return c }
+func (c *capturingLogger) WithContext(_ context.Context) logger.StyledLogger { return c }
 
 // hasField returns true when the captured INFO args contain key=value as an
 // adjacent pair.
@@ -76,7 +78,7 @@ func TestLogRequestResult_StickyOutcome_AppearsAtInfo(t *testing.T) {
 	pr.stickyOutcome = "hit"
 
 	app := &Application{logger: cl}
-	app.logRequestResult(pr, nil)
+	app.logRequestResult(context.Background(), pr, nil)
 
 	assert.True(t, cl.hasField("sticky_outcome", "hit"),
 		"INFO log must contain sticky_outcome=hit; fields: %v", cl.infoFields)
@@ -92,7 +94,7 @@ func TestLogRequestResult_StickyOutcome_OmittedWhenDisabled(t *testing.T) {
 	pr.stickyOutcome = "disabled"
 
 	app := &Application{logger: cl}
-	app.logRequestResult(pr, nil)
+	app.logRequestResult(context.Background(), pr, nil)
 
 	assert.False(t, cl.hasKey("sticky_outcome"),
 		"sticky_outcome must be absent from INFO log when outcome is 'disabled'; fields: %v", cl.infoFields)
@@ -112,7 +114,7 @@ func TestLogRequestResult_RoutingDecision_AppearsAtInfo(t *testing.T) {
 	}
 
 	app := &Application{logger: cl}
-	app.logRequestResult(pr, nil)
+	app.logRequestResult(context.Background(), pr, nil)
 
 	assert.True(t, cl.hasField("routing_strategy", "priority"),
 		"INFO log must contain routing_strategy; fields: %v", cl.infoFields)
@@ -135,7 +137,7 @@ func TestLogRequestResult_ProviderModel_AppearsAtInfo(t *testing.T) {
 	}
 
 	app := &Application{logger: cl}
-	app.logRequestResult(pr, nil)
+	app.logRequestResult(context.Background(), pr, nil)
 
 	assert.True(t, cl.hasField("provider_model", "llama3.1:8b"),
 		"INFO log must contain provider_model; fields: %v", cl.infoFields)
@@ -151,7 +153,7 @@ func TestLogRequestResult_FallbackReason_AppearsAtInfo(t *testing.T) {
 	pr.translatorFallbackReason = string(constants.FallbackReasonCannotPassthrough)
 
 	app := &Application{logger: cl}
-	app.logRequestResult(pr, nil)
+	app.logRequestResult(context.Background(), pr, nil)
 
 	assert.True(t, cl.hasField("fallback_reason", string(constants.FallbackReasonCannotPassthrough)),
 		"INFO log must contain fallback_reason; fields: %v", cl.infoFields)
@@ -168,7 +170,7 @@ func TestLogRequestResult_FallbackReason_OmittedWhenNone(t *testing.T) {
 	pr.translatorFallbackReason = string(constants.FallbackReasonNone) // == ""
 
 	app := &Application{logger: cl}
-	app.logRequestResult(pr, nil)
+	app.logRequestResult(context.Background(), pr, nil)
 
 	assert.False(t, cl.hasKey("fallback_reason"),
 		"fallback_reason must be absent from INFO log when reason is FallbackReasonNone; fields: %v", cl.infoFields)
@@ -184,7 +186,7 @@ func TestLogRequestResult_SessionID_AtInfo(t *testing.T) {
 	pr.sessionID = "sess-abc-123"
 
 	app := &Application{logger: cl}
-	app.logRequestResult(pr, nil)
+	app.logRequestResult(context.Background(), pr, nil)
 
 	assert.True(t, cl.hasField("session_id", "sess-abc-123"),
 		"session_id must appear at INFO; fields: %v", cl.infoFields)

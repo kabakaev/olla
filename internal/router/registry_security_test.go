@@ -5,6 +5,7 @@ package router
 // is wired in, so that oversized bodies are rejected on status/health/stats endpoints.
 
 import (
+	"context"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -111,9 +112,13 @@ func TestWireUpWithSecurityChain_NonProxyRouteAllowsSmallBody(t *testing.T) {
 type mockRouteLogger struct{}
 
 func (m *mockRouteLogger) Debug(msg string, args ...any)                                {}
+func (m *mockRouteLogger) DebugCtx(ctx context.Context, msg string, args ...any)        {}
 func (m *mockRouteLogger) Info(msg string, args ...any)                                 {}
+func (m *mockRouteLogger) InfoCtx(ctx context.Context, msg string, args ...any)         {}
 func (m *mockRouteLogger) Warn(msg string, args ...any)                                 {}
+func (m *mockRouteLogger) WarnCtx(ctx context.Context, msg string, args ...any)         {}
 func (m *mockRouteLogger) Error(msg string, args ...any)                                {}
+func (m *mockRouteLogger) ErrorCtx(ctx context.Context, msg string, args ...any)        {}
 func (m *mockRouteLogger) ResetLine()                                                   {}
 func (m *mockRouteLogger) InfoWithStatus(msg string, status string, args ...any)        {}
 func (m *mockRouteLogger) InfoWithCount(msg string, count int, args ...any)             {}
@@ -127,6 +132,7 @@ func (m *mockRouteLogger) InfoHealthStatus(msg string, name string, status domai
 }
 func (m *mockRouteLogger) GetUnderlying() *slog.Logger                                         { return slog.Default() }
 func (m *mockRouteLogger) WithRequestID(requestID string) logger.StyledLogger                  { return m }
+func (m *mockRouteLogger) WithContext(ctx context.Context) logger.StyledLogger                 { return m }
 func (m *mockRouteLogger) InfoConfigChange(oldName, newName string)                            {}
 func (m *mockRouteLogger) WithAttrs(attrs ...slog.Attr) logger.StyledLogger                    { return m }
 func (m *mockRouteLogger) With(args ...any) logger.StyledLogger                                { return m }

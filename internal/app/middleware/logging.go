@@ -14,6 +14,8 @@ import (
 	"github.com/thushan/olla/internal/util"
 
 	"github.com/thushan/olla/internal/logger"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 )
 
 // Context keys for request ID and logger
@@ -237,7 +239,17 @@ func CombinedLoggingMiddleware(styledLogger logger.StyledLogger) func(http.Handl
 			}
 
 			ctx := context.WithValue(r.Context(), RequestIDKey, requestID)
+			if span := trace.SpanFromContext(ctx); span != nil {
+				span.SetAttributes(attribute.String("request.id", requestID))
+			}
+
 			baseLogger := styledLogger.GetUnderlying().With(constants.ContextRequestIdKey, requestID)
+			if span := trace.SpanFromContext(ctx); span != nil {
+				sc := span.SpanContext()
+				if sc.IsValid() {
+					baseLogger = baseLogger.With("trace_id", sc.TraceID().String(), "span_id", sc.SpanID().String())
+				}
+			}
 			ctx = context.WithValue(ctx, LoggerKey, baseLogger)
 
 			w.Header().Set("X-Olla-Request-ID", requestID)

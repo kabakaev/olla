@@ -54,6 +54,7 @@ func (s *Service) ProxyRequestToEndpointsWithRetry(ctx context.Context, w http.R
 // to avoid double-counting (see proxy_olla_connection_counting_test.go for context).
 func (s *Service) proxyToSingleEndpoint(ctx context.Context, w http.ResponseWriter, r *http.Request, endpoint *domain.Endpoint, stats *ports.RequestStats, rlog logger.StyledLogger) error {
 	stats.EndpointName = endpoint.Name
+	stats.EndpointType = endpoint.Type
 
 	targetURL := common.BuildTargetURL(r, endpoint, s.configuration.GetProxyPrefix())
 

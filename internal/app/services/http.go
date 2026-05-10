@@ -177,6 +177,12 @@ func (s *HTTPService) Start(ctx context.Context) error {
 			"allow_credentials", s.fullConfig.Server.Cors.AllowCredentials)
 	}
 
+	root = middleware.TelemetryMiddleware(
+		s.fullConfig.Server.RateLimits.TrustProxyHeaders,
+		s.fullConfig.Server.RateLimits.TrustedProxyCIDRsParsed,
+		s.fullConfig.Telemetry.OTLP.SkipHealthTraces,
+	)(root)
+
 	addr := s.config.GetAddress()
 
 	ln, err := bindListener(ctx, addr)

@@ -507,7 +507,7 @@ func TestResolveAliasEndpoints_IntegrationWithFilterEndpointsByProfile(t *testin
 	profile.ModelName = "gpt-oss-120b"
 	profile.SupportedBy = []string{domain.ProfileOllama, domain.ProfileLmStudio}
 
-	result := app.filterEndpointsByProfile(endpoints, profile, styledLog)
+	result := app.filterEndpointsByProfile(context.Background(), endpoints, profile, styledLog)
 
 	// Both endpoints should be returned via alias resolution
 	assert.Len(t, result, 2)
