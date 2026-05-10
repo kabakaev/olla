@@ -93,7 +93,9 @@ func (a *Application) providerProxyHandler(w http.ResponseWriter, r *http.Reques
 	pr.clientIP = util.GetClientIP(r, rl.TrustProxyHeaders, rl.TrustedProxyCIDRsParsed)
 
 	ctx, r = a.setupRequestContext(r, pr.stats, pr.clientIP)
+	pr.requestLogger = pr.requestLogger.WithContext(ctx)
 	a.analyzeRequest(ctx, r, pr)
+	annotateRequestSpan(ctx, a.Config.Telemetry, pr)
 
 	// Sticky session key must be computed after analyzeRequest so the model name
 	// is populated; inject into context before endpoint selection so the sticky
@@ -112,13 +114,24 @@ func (a *Application) providerProxyHandler(w http.ResponseWriter, r *http.Reques
 		http.Error(w, fmt.Sprintf("No %s endpoints available", providerType), http.StatusNotFound)
 		return
 	}
+	annotateRoutingSpan(ctx, pr, endpoints)
 
 	// Update request path to the target path (strip provider prefix)
 	r.URL.Path = pr.targetPath
 
 	a.logRequestStart(pr, len(endpoints))
-	err = a.executeProxyRequest(ctx, w, r, endpoints, pr)
-	a.logRequestResult(pr, err)
+	responseWriter := w
+	var capture *telemetryCaptureWriter
+	if a.Config.Telemetry.PayloadCapture.Enabled {
+		capture = newTelemetryCaptureWriter(w, a.Config.Telemetry.PayloadCapture.MaxResponseBytes)
+		responseWriter = capture
+	}
+
+	err = a.executeProxyRequest(ctx, responseWriter, r, endpoints, pr)
+	if err == nil && capture != nil {
+		annotateResponseSpan(ctx, a.Config.Telemetry, pr, extractHumanReadableCompletion(capture.CapturedString(), pr.isStreaming))
+	}
+	a.logRequestResult(ctx, pr, err)
 
 	if err != nil {
 		a.handleProxyError(w, err)
@@ -139,12 +152,12 @@ func (a *Application) getProviderEndpoints(ctx context.Context, providerType str
 	providerProfile := a.createProviderProfile(providerType)
 	providerProfile.Path = pr.targetPath
 
-	providerEndpoints := a.filterEndpointsByProfile(endpoints, providerProfile, pr.requestLogger)
+	providerEndpoints := a.filterEndpointsByProfile(ctx, endpoints, providerProfile, pr.requestLogger)
 
 	// If the request has specific requirements (e.g., needs vision support),
 	// apply those filters on top of the provider constraint
 	if pr.profile != nil && len(pr.profile.SupportedBy) > 0 {
-		providerEndpoints = a.filterEndpointsByProfile(providerEndpoints, pr.profile, pr.requestLogger)
+		providerEndpoints = a.filterEndpointsByProfile(ctx, providerEndpoints, pr.profile, pr.requestLogger)
 	}
 
 	// Apply context length filtering if we have token count

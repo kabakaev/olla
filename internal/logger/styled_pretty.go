@@ -16,6 +16,7 @@ import (
 // PrettyStyledLogger implements StyledLogger with pterm formatting
 type PrettyStyledLogger struct {
 	logger *slog.Logger
+	ctx    context.Context
 	Theme  *theme.Theme
 }
 
@@ -26,6 +27,14 @@ func NewPrettyStyledLogger(logger *slog.Logger, theme *theme.Theme) *PrettyStyle
 	}
 }
 func (sl *PrettyStyledLogger) Debug(msg string, args ...any) {
+	sl.DebugCtx(sl.ctx, msg, args...)
+}
+
+func (sl *PrettyStyledLogger) DebugCtx(ctx context.Context, msg string, args ...any) {
+	if ctx != nil {
+		sl.logger.DebugContext(ctx, msg, args...)
+		return
+	}
 	sl.logger.Debug(msg, args...)
 }
 func (sl *PrettyStyledLogger) InfoWithStatus(msg string, status string, args ...any) {
@@ -37,14 +46,38 @@ func (sl *PrettyStyledLogger) ResetLine() {
 	fmt.Print("\033[1A\033[2K")
 }
 func (sl *PrettyStyledLogger) Info(msg string, args ...any) {
+	sl.InfoCtx(sl.ctx, msg, args...)
+}
+
+func (sl *PrettyStyledLogger) InfoCtx(ctx context.Context, msg string, args ...any) {
+	if ctx != nil {
+		sl.logger.InfoContext(ctx, msg, args...)
+		return
+	}
 	sl.logger.Info(msg, args...)
 }
 
 func (sl *PrettyStyledLogger) Warn(msg string, args ...any) {
+	sl.WarnCtx(sl.ctx, msg, args...)
+}
+
+func (sl *PrettyStyledLogger) WarnCtx(ctx context.Context, msg string, args ...any) {
+	if ctx != nil {
+		sl.logger.WarnContext(ctx, msg, args...)
+		return
+	}
 	sl.logger.Warn(msg, args...)
 }
 
 func (sl *PrettyStyledLogger) Error(msg string, args ...any) {
+	sl.ErrorCtx(sl.ctx, msg, args...)
+}
+
+func (sl *PrettyStyledLogger) ErrorCtx(ctx context.Context, msg string, args ...any) {
+	if ctx != nil {
+		sl.logger.ErrorContext(ctx, msg, args...)
+		return
+	}
 	sl.logger.Error(msg, args...)
 }
 
@@ -128,6 +161,14 @@ func (sl *PrettyStyledLogger) WithRequestID(requestID string) StyledLogger {
 	return sl.With(constants.ContextRequestIdKey, requestID)
 }
 
+func (sl *PrettyStyledLogger) WithContext(ctx context.Context) StyledLogger {
+	return &PrettyStyledLogger{
+		logger: sl.logger,
+		ctx:    ctx,
+		Theme:  sl.Theme,
+	}
+}
+
 func (sl *PrettyStyledLogger) InfoConfigChange(oldName, newName string) {
 	styledMsg := fmt.Sprintf("Endpoint configuration changed for %s to: %s",
 		sl.Theme.Endpoint.Sprint(oldName),
@@ -143,6 +184,7 @@ func (sl *PrettyStyledLogger) WithAttrs(attrs ...slog.Attr) StyledLogger {
 
 	return &PrettyStyledLogger{
 		logger: sl.logger.With(args...),
+		ctx:    sl.ctx,
 		Theme:  sl.Theme,
 	}
 }
@@ -150,6 +192,7 @@ func (sl *PrettyStyledLogger) WithAttrs(attrs ...slog.Attr) StyledLogger {
 func (sl *PrettyStyledLogger) With(args ...any) StyledLogger {
 	return &PrettyStyledLogger{
 		logger: sl.logger.With(args...),
+		ctx:    sl.ctx,
 		Theme:  sl.Theme,
 	}
 }
@@ -173,11 +216,11 @@ func (sl *PrettyStyledLogger) logWithContext(level string, msg string, endpoint 
 
 	switch level {
 	case LogLevelInfo:
-		sl.logger.Info(styledMsg, ctx.UserArgs...)
+		sl.InfoCtx(sl.ctx, styledMsg, ctx.UserArgs...)
 	case LogLevelWarn:
-		sl.logger.Warn(styledMsg, ctx.UserArgs...)
+		sl.WarnCtx(sl.ctx, styledMsg, ctx.UserArgs...)
 	case LogLevelError:
-		sl.logger.Error(styledMsg, ctx.UserArgs...)
+		sl.ErrorCtx(sl.ctx, styledMsg, ctx.UserArgs...)
 	}
 
 	// log file: detailed hopefully
