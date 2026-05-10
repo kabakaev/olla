@@ -40,6 +40,7 @@ discovery:      # Endpoint discovery
 model_registry: # Model management
 translators:    # API translation (e.g., Anthropic ↔ OpenAI)
 logging:        # Logging configuration
+telemetry:      # OpenTelemetry export and payload capture
 engineering:    # Debug features
 ```
 
@@ -805,6 +806,64 @@ Log levels:
 - `info`: Normal operational messages
 - `warn`: Warning conditions
 - `error`: Error conditions only
+
+## Telemetry Configuration
+
+OpenTelemetry export settings for traces, metrics, and optional payload capture.
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `enabled` | bool | `false` | Enable OpenTelemetry export |
+| `service_name` | string | `"olla"` | Service name used in telemetry resources |
+| `service_version` | string | `""` | Optional service version override |
+| `otlp.endpoint` | string | `"localhost:4317"` | OTLP gRPC collector endpoint |
+| `otlp.insecure` | bool | `true` | Use insecure OTLP gRPC transport |
+| `traces.enabled` | bool | `true` | Enable trace export |
+| `metrics.enabled` | bool | `true` | Enable metric export |
+| `payload_capture.enabled` | bool | `false` | Enable prompt/response capture |
+| `payload_capture.max_prompt_bytes` | int | `32768` | Maximum prompt bytes exported |
+| `payload_capture.max_response_bytes` | int | `65536` | Maximum response bytes exported |
+| `payload_capture.redact_headers` | []string | `["authorization","cookie"]` | Reserved list for sensitive header policy |
+
+Example:
+
+```yaml
+telemetry:
+  enabled: true
+  service_name: "olla"
+  service_version: "dev"
+  otlp:
+    endpoint: "otel-collector:4317"
+    insecure: true
+  traces:
+    enabled: true
+  metrics:
+    enabled: true
+  payload_capture:
+    enabled: false
+    max_prompt_bytes: 32768
+    max_response_bytes: 65536
+    redact_headers:
+      - "authorization"
+      - "cookie"
+```
+
+Environment variables:
+
+```bash
+OLLA_TELEMETRY_ENABLED=true
+OLLA_TELEMETRY_SERVICE_NAME=olla
+OLLA_TELEMETRY_SERVICE_VERSION=dev
+OLLA_TELEMETRY_OTLP_ENDPOINT=otel-collector:4317
+OLLA_TELEMETRY_OTLP_INSECURE=true
+OLLA_TELEMETRY_TRACES_ENABLED=true
+OLLA_TELEMETRY_METRICS_ENABLED=true
+OLLA_TELEMETRY_PAYLOAD_CAPTURE_ENABLED=false
+OLLA_TELEMETRY_PAYLOAD_CAPTURE_MAX_PROMPT_BYTES=32768
+OLLA_TELEMETRY_PAYLOAD_CAPTURE_MAX_RESPONSE_BYTES=65536
+```
+
+See [OpenTelemetry](practices/opentelemetry.md) for operational guidance and exported fields.
 
 ## Engineering Configuration
 

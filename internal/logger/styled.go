@@ -1,6 +1,7 @@
 package logger
 
 import (
+	"context"
 	"log/slog"
 
 	"github.com/thushan/olla/internal/core/domain"
@@ -11,9 +12,13 @@ import (
 // StyledLogger interface for different formatting strategies
 type StyledLogger interface {
 	Debug(msg string, args ...any)
+	DebugCtx(ctx context.Context, msg string, args ...any)
 	Info(msg string, args ...any)
+	InfoCtx(ctx context.Context, msg string, args ...any)
 	Warn(msg string, args ...any)
+	WarnCtx(ctx context.Context, msg string, args ...any)
 	Error(msg string, args ...any)
+	ErrorCtx(ctx context.Context, msg string, args ...any)
 	ResetLine()
 	InfoWithStatus(msg string, status string, args ...any)
 	InfoWithCount(msg string, count int, args ...any)
@@ -26,6 +31,7 @@ type StyledLogger interface {
 	InfoHealthStatus(msg string, name string, status domain.EndpointStatus, args ...any)
 	GetUnderlying() *slog.Logger
 	WithRequestID(requestID string) StyledLogger
+	WithContext(ctx context.Context) StyledLogger
 	InfoConfigChange(oldName, newName string)
 	WithAttrs(attrs ...slog.Attr) StyledLogger
 	With(args ...any) StyledLogger
