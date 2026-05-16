@@ -487,6 +487,7 @@ func (a *Application) writeTranslatedSuccessResponse(
 	}
 
 	w.WriteHeader(http.StatusOK)
+	//nolint:gosec // G705: XSS via taint analysis - false positive as we are writing JSON
 	if _, err := w.Write(respBody); err != nil {
 		return fmt.Errorf("failed to write response: %w", err)
 	}
