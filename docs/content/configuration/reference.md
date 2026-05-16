@@ -817,6 +817,7 @@ OpenTelemetry export settings for traces, metrics, and optional payload capture.
 | `service_name` | string | `"olla"` | Service name used in telemetry resources |
 | `service_version` | string | `""` | Optional service version override |
 | `otlp.endpoint` | string | `"localhost:4317"` | OTLP gRPC collector endpoint |
+| `otlp.headers` | map[string]string | `{}` | Custom HTTP headers for OTLP export (e.g., for auth) |
 | `otlp.insecure` | bool | `true` | Use insecure OTLP gRPC transport |
 | `traces.enabled` | bool | `true` | Enable trace export |
 | `metrics.enabled` | bool | `true` | Enable metric export |
@@ -834,6 +835,8 @@ telemetry:
   service_version: "dev"
   otlp:
     endpoint: "otel-collector:4317"
+    headers:
+      Authorization: "Basic QWxhZGRpbjpvcGVuIHNlc2FtZQ=="
     insecure: true
   traces:
     enabled: true

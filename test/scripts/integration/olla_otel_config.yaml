@@ -28,8 +28,11 @@ telemetry:
   service_name: olla-local-test
   service_version: dev
   otlp:
-    endpoint: localhost:4317
+    endpoint: 127.0.0.1:4317
     insecure: true
+    headers:
+      Authorization: "Bearer olla-e2e-test-token"
+      X-Test-Header: "e2e-test-value"
   traces:
     enabled: true
   metrics:
