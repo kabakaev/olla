@@ -78,7 +78,10 @@ func InitProviders(ctx context.Context, cfg config.TelemetryConfig) (*Providers,
 	providers := &Providers{}
 
 	if cfg.Traces.Enabled {
-		opts := []otlptracegrpc.Option{otlptracegrpc.WithEndpoint(cfg.OTLP.Endpoint)}
+		opts := []otlptracegrpc.Option{
+			otlptracegrpc.WithEndpoint(cfg.OTLP.Endpoint),
+			otlptracegrpc.WithHeaders(cfg.OTLP.Headers),
+		}
 		if cfg.OTLP.Insecure {
 			opts = append(opts, otlptracegrpc.WithInsecure())
 		}
@@ -96,7 +99,10 @@ func InitProviders(ctx context.Context, cfg config.TelemetryConfig) (*Providers,
 	}
 
 	if cfg.Metrics.Enabled {
-		opts := []otlpmetricgrpc.Option{otlpmetricgrpc.WithEndpoint(cfg.OTLP.Endpoint)}
+		opts := []otlpmetricgrpc.Option{
+			otlpmetricgrpc.WithEndpoint(cfg.OTLP.Endpoint),
+			otlpmetricgrpc.WithHeaders(cfg.OTLP.Headers),
+		}
 		if cfg.OTLP.Insecure {
 			opts = append(opts, otlpmetricgrpc.WithInsecure())
 		}
@@ -117,7 +123,10 @@ func InitProviders(ctx context.Context, cfg config.TelemetryConfig) (*Providers,
 	}
 
 	if cfg.Logs.Enabled {
-		opts := []otlploggrpc.Option{otlploggrpc.WithEndpoint(cfg.OTLP.Endpoint)}
+		opts := []otlploggrpc.Option{
+			otlploggrpc.WithEndpoint(cfg.OTLP.Endpoint),
+			otlploggrpc.WithHeaders(cfg.OTLP.Headers),
+		}
 		if cfg.OTLP.Insecure {
 			opts = append(opts, otlploggrpc.WithInsecure())
 		}

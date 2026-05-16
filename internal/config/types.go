@@ -165,8 +165,9 @@ type TelemetryConfig struct {
 }
 
 type TelemetryOTLPConfig struct {
-	Endpoint string `yaml:"endpoint"`
-	Insecure bool   `yaml:"insecure"`
+	Headers  map[string]string `yaml:"headers"`
+	Endpoint string            `yaml:"endpoint"`
+	Insecure bool              `yaml:"insecure"`
 }
 
 type TelemetrySignalConfig struct {
@@ -174,15 +175,15 @@ type TelemetrySignalConfig struct {
 }
 
 type TelemetryLogsConfig struct {
-	Enabled bool   `yaml:"enabled"`
 	Level   string `yaml:"level"`
+	Enabled bool   `yaml:"enabled"`
 }
 
 type TelemetryPayloadCaptureConfig struct {
-	Enabled          bool     `yaml:"enabled"`
+	RedactHeaders    []string `yaml:"redact_headers"`
 	MaxPromptBytes   int      `yaml:"max_prompt_bytes"`
 	MaxResponseBytes int      `yaml:"max_response_bytes"`
-	RedactHeaders    []string `yaml:"redact_headers"`
+	Enabled          bool     `yaml:"enabled"`
 }
 
 // EngineeringConfig holds development/debugging configuration

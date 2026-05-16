@@ -53,6 +53,7 @@ telemetry:
 | `telemetry.service_name` | string | `"olla"` | Service name sent in OTel resource attributes |
 | `telemetry.service_version` | string | `""` | Optional service version override |
 | `telemetry.otlp.endpoint` | string | `"localhost:4317"` | OTLP gRPC endpoint |
+| `telemetry.otlp.headers` | map[string]string | `{}` | Custom headers (e.g., `Authorization: "Basic ..."` for OpenObserve) |
 | `telemetry.otlp.insecure` | bool | `true` | Use insecure gRPC transport |
 | `telemetry.traces.enabled` | bool | `true` | Enable trace export |
 | `telemetry.metrics.enabled` | bool | `true` | Enable metric export |
@@ -157,6 +158,8 @@ telemetry:
   service_name: "olla"
   otlp:
     endpoint: "openobserve-collector:4317"
+    headers:
+      Authorization: "Basic QWxhZGRpbjpvcGVuIHNlc2FtZQ=="
     insecure: true
 ```
 
