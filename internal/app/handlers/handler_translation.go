@@ -518,15 +518,9 @@ func (a *Application) writeTranslatedSuccessResponse(
 	// Write sticky headers before committing the response.
 	a.setStickyResponseHeadersFromRequest(w, r)
 
-	// Serialize and write response
-	respBody, err := json.Marshal(targetResp)
-	if err != nil {
-		return fmt.Errorf("failed to marshal response: %w", err)
-	}
-
 	w.WriteHeader(http.StatusOK)
-	if _, err := w.Write(respBody); err != nil {
-		return fmt.Errorf("failed to write response: %w", err)
+	if err := json.NewEncoder(w).Encode(targetResp); err != nil {
+		return fmt.Errorf("failed to encode response: %w", err)
 	}
 
 	return nil

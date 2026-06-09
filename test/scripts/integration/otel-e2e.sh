@@ -24,6 +24,8 @@ MOCK_BACKEND="$SCRIPT_DIR/mock_backend.py"
 OLLA_CONFIG="$SCRIPT_DIR/olla_otel_config.yaml"
 OLLA_PORT=40124
 BACKEND_PORT=11434
+declare -a TRANSPORTS=("grpc" "http")
+COLLECTOR_LOG_SNAPSHOT="${TMPDIR:-/tmp}/olla-otelcol-e2e.log"
 
 echo -e "${CYAN}======================================================${RESET}"
 echo -e "${CYAN}         Olla OTLP End-to-End Verification            ${RESET}"
@@ -61,6 +63,11 @@ wait_for_port() {
     return 1
 }
 
+stop_olla() {
+    pkill -f "go run . -c $OLLA_CONFIG" || true
+    lsof -ti:$OLLA_PORT | xargs kill -9 2>/dev/null || true
+}
+
 # 1. Start Mock Backend
 echo -e "\n${YELLOW}[1/5] Starting Mock LLM Backend...${RESET}"
 python3 "$MOCK_BACKEND" &
@@ -71,87 +78,102 @@ echo -e "\n${YELLOW}[2/5] Restarting OTLP Collector (with Auth enforced)...${RES
 "$SCRIPT_DIR/restart_otelcol.sh" > /dev/null
 echo -e "${GREEN}✓ Collector restarted${RESET}"
 
-# 3. Start Olla
-echo -e "\n${YELLOW}[3/5] Starting Olla with OTel configuration...${RESET}"
-# We use a unique request ID to track this specific test run
-OTEL_METRIC_EXPORT_INTERVAL=1000 go run . -c "$OLLA_CONFIG" &
-wait_for_port $OLLA_PORT "Olla"
+for transport in "${TRANSPORTS[@]}"; do
+    case "$transport" in
+        grpc)
+            otlp_endpoint="127.0.0.1:4317"
+            ;;
+        http)
+            otlp_endpoint="127.0.0.1:4318"
+            ;;
+        *)
+            echo -e "${RED}Unsupported transport: $transport${RESET}"
+            exit 1
+            ;;
+    esac
 
-# 4. Make Inference Call
-echo -e "\n${YELLOW}[4/5] Sending test inference request to Olla...${RESET}"
-TEST_ID="e2e-test-$(date +%s)"
-RESPONSE=$(curl -sS http://127.0.0.1:$OLLA_PORT/olla/openai-compatible/v1/chat/completions \
-  -H 'Content-Type: application/json' \
-  -d "{
-    \"model\":\"gemma-4-e4b-it-iq4_nl.gguf\",
-    \"messages\":[{\"role\":\"user\",\"content\":\"Verify OTLP export with ID $TEST_ID\"}],
-    \"stream\":false
-  }")
+    stop_olla
 
-if [[ "$RESPONSE" == *"telemetry ok"* ]]; then
-    echo -e "${GREEN}✓ Inference call successful${RESET}"
-    echo -e "${GREY}Response: $RESPONSE${RESET}"
-else
-    echo -e "${RED}✗ Inference call failed or returned unexpected response${RESET}"
-    echo "Response: $RESPONSE"
-    exit 1
-fi
+    # 3. Start Olla
+    echo -e "\n${YELLOW}[3/5] Starting Olla with OTel configuration over ${transport}...${RESET}"
+    OTEL_METRIC_EXPORT_INTERVAL=1000 \
+    OLLA_TELEMETRY_OTLP_PROTOCOL="$transport" \
+    OLLA_TELEMETRY_OTLP_ENDPOINT="$otlp_endpoint" \
+    go run . -c "$OLLA_CONFIG" &
+    wait_for_port $OLLA_PORT "Olla"
 
-# 5. Wait and Check Collector Logs
-echo -e "\n${YELLOW}[5/5] Verifying OTLP telemetry delivery...${RESET}"
-echo "Waiting 10s for OTel exporters to flush..."
-sleep 10
+    # 4. Make Inference Call
+    echo -e "\n${YELLOW}[4/5] Sending test inference request to Olla over ${transport}...${RESET}"
+    TEST_ID="e2e-${transport}-$(date +%s)"
+    RESPONSE=$(curl -sS http://127.0.0.1:$OLLA_PORT/olla/openai-compatible/v1/chat/completions \
+      -H 'Content-Type: application/json' \
+      -d "{
+        \"model\":\"gemma-4-e4b-it-iq4_nl.gguf\",
+        \"messages\":[{\"role\":\"user\",\"content\":\"Verify OTLP ${transport} export with ID $TEST_ID\"}],
+        \"stream\":false
+      }")
 
-echo "Checking OTLP collector logs for required fields..."
-REQUIRED_PATTERNS=(
-    "gen_ai.request.model: Str(gemma-4-e4b-it-iq4_nl.gguf)"
-    "gen_ai.prompt: Str(Verify OTLP export with ID $TEST_ID"
-    "gen_ai.completion: Str(telemetry ok)"
-    "routing.endpoints: Str(local-openai-compatible)"
-    "http.response.status_code: Int(200)"
-    "gen_ai.client.token.usage"
-)
+    if [[ "$RESPONSE" == *"telemetry ok"* ]]; then
+        echo -e "${GREEN}✓ Inference call successful${RESET}"
+        echo -e "${GREY}Response: $RESPONSE${RESET}"
+    else
+        echo -e "${RED}✗ Inference call failed or returned unexpected response${RESET}"
+        echo "Response: $RESPONSE"
+        exit 1
+    fi
 
-MISSING_FIELDS=0
-LOGS=""
+    # 5. Wait and Check Collector Logs
+    echo -e "\n${YELLOW}[5/5] Verifying ${transport} OTLP telemetry delivery...${RESET}"
+    echo "Waiting 10s for OTel exporters to flush..."
+    sleep 10
 
-# Metrics can take longer to export than traces (often a 60s default interval, 
-# though we try to flush). We'll retry a few times.
-MAX_RETRIES=3
-for i in $(seq 1 $MAX_RETRIES); do
+    REQUIRED_PATTERNS=(
+        "gen_ai.request.model: Str(gemma-4-e4b-it-iq4_nl.gguf)"
+        "gen_ai.prompt: Str(Verify OTLP ${transport} export with ID $TEST_ID"
+        "gen_ai.completion: Str(telemetry ok)"
+        "routing.endpoints: Str(local-openai-compatible)"
+        "http.response.status_code: Int(200)"
+        "Name: olla.requests.total"
+        "Name: olla.requests.latency_ms"
+    )
+
     MISSING_FIELDS=0
-    LOGS=$(podman logs otelcol 2>&1)
-    
-    echo "Checking OTLP collector logs for required fields (Attempt $i/$MAX_RETRIES)..."
-    for pattern in "${REQUIRED_PATTERNS[@]}"; do
-        if echo "$LOGS" | grep -qF "$pattern"; then
-            echo -e "  ${GREEN}✓${RESET} Found: $pattern"
-        else
-            echo -e "  ${RED}✗${RESET} Missing: $pattern"
-            MISSING_FIELDS=$((MISSING_FIELDS + 1))
+    MAX_RETRIES=3
+    for i in $(seq 1 $MAX_RETRIES); do
+        MISSING_FIELDS=0
+        podman logs otelcol > "$COLLECTOR_LOG_SNAPSHOT" 2>&1
+
+        echo "Checking OTLP collector logs for required fields (${transport}, attempt $i/$MAX_RETRIES)..."
+        for pattern in "${REQUIRED_PATTERNS[@]}"; do
+            if grep -qF "$pattern" "$COLLECTOR_LOG_SNAPSHOT"; then
+                echo -e "  ${GREEN}✓${RESET} Found: $pattern"
+            else
+                echo -e "  ${RED}✗${RESET} Missing: $pattern"
+                MISSING_FIELDS=$((MISSING_FIELDS + 1))
+            fi
+        done
+
+        if [ $MISSING_FIELDS -eq 0 ]; then
+            break
+        fi
+
+        if [ $i -lt $MAX_RETRIES ]; then
+            echo -e "${YELLOW}Some fields missing. Waiting 15s for OTel flush...${RESET}"
+            sleep 15
         fi
     done
 
     if [ $MISSING_FIELDS -eq 0 ]; then
-        break
-    fi
-
-    if [ $i -lt $MAX_RETRIES ]; then
-        echo -e "${YELLOW}Some fields missing. Waiting 15s for OTel flush...${RESET}"
-        sleep 15
+        echo -e "\n${GREEN}✓ SUCCESS: All required ${transport} OTLP fields found in collector logs!${RESET}"
+        echo -e "${GREEN}✓ Authentication verified for ${transport}.${RESET}"
+    else
+        echo -e "\n${RED}✗ FAILURE: $MISSING_FIELDS required ${transport} fields were still missing after $MAX_RETRIES attempts${RESET}"
+        echo -e "${YELLOW}Last 50 lines of collector logs:${RESET}"
+        tail -n 50 "$COLLECTOR_LOG_SNAPSHOT"
+        exit 1
     fi
 done
 
-if [ $MISSING_FIELDS -eq 0 ]; then
-    echo -e "\n${GREEN}✓ SUCCESS: All required OTLP fields found in collector logs!${RESET}"
-    echo -e "${GREEN}✓ Authentication verified: Collector accepted the authenticated request.${RESET}"
-else
-    echo -e "\n${RED}✗ FAILURE: $MISSING_FIELDS required fields were still missing after $MAX_RETRIES attempts${RESET}"
-    echo -e "${YELLOW}Last 50 lines of collector logs:${RESET}"
-    echo "$LOGS" | tail -n 50
-    exit 1
-fi
-
 echo -e "\n${GREEN}======================================================${RESET}"
-echo -e "${GREEN}         OTLP End-to-End Test: PASSED                 ${RESET}"
+echo -e "${GREEN}     OTLP End-to-End Test (gRPC + HTTP): PASSED       ${RESET}"
 echo -e "${GREEN}======================================================${RESET}"

@@ -2,7 +2,8 @@
 name: otel-dev-loop
 description: >
   Reusable local OpenTelemetry development loop for Olla. Uses a mock LLM backend
-  and a secure OTLP collector to verify traces, metrics, and logs.
+  and a secure OTLP collector to verify traces, metrics, and logs over both gRPC
+  and HTTP OTLP transports.
 ---
 
 # OTel Dev Loop
@@ -16,13 +17,17 @@ Run a tight agentic loop:
 
 1. Edit code.
 2. Run focused tests, then `go test ./...` when changes stabilize.
-3. Run the automated E2E test script: `./test/scripts/integration/otel-e2e.sh`.
+3. Run the automated E2E test script for both OTLP transports: `./test/scripts/integration/otel-e2e.sh`.
 4. Inspect collector output and Olla logs for regressions.
 5. Fix and repeat.
 
 ## Automated E2E Test
 
-Run the entire chain (mock backend, collector, Olla, and log verification) with one command:
+Run the entire chain (mock backend, collector, Olla, and log verification) with one command.
+The script must verify both OTLP transports in sequence:
+
+- `grpc` via collector `127.0.0.1:4317`
+- `http` via collector `127.0.0.1:4318`
 
 ```bash
 ./test/scripts/integration/otel-e2e.sh
@@ -39,14 +44,27 @@ A lightweight Python server that mimics an OpenAI-compatible API.
 ```
 
 ### 2. Restart OTLP collector
-Restarts a Podman-based `otelcol-contrib` container with `bearertokenauth` enforced.
+Restarts a Podman-based `otelcol-contrib` container with `bearertokenauth` enforced
+for both OTLP gRPC and OTLP HTTP receivers.
 ```bash
 ./test/scripts/integration/restart_otelcol.sh
 ```
 
 ### 3. Start Olla from repo
-Uses a configuration that includes the required OTLP authentication headers.
+Use environment overrides to select the transport under test while reusing the same
+authenticated base config.
+
+For gRPC:
 ```bash
+OLLA_TELEMETRY_OTLP_PROTOCOL=grpc \
+OLLA_TELEMETRY_OTLP_ENDPOINT=127.0.0.1:4317 \
+go run . -c ./test/scripts/integration/olla_otel_config.yaml
+```
+
+For HTTP:
+```bash
+OLLA_TELEMETRY_OTLP_PROTOCOL=http \
+OLLA_TELEMETRY_OTLP_ENDPOINT=127.0.0.1:4318 \
 go run . -c ./test/scripts/integration/olla_otel_config.yaml
 ```
 
@@ -77,16 +95,17 @@ curl -sN http://127.0.0.1:40124/olla/openai-compatible/v1/chat/completions \
 
 Location: `test/scripts/integration/`
 
-- `otel-e2e.sh`: Automated E2E test script.
+- `otel-e2e.sh`: Automated E2E test script for both gRPC and HTTP transports.
 - `mock_backend.py`: Python mock server.
 - `start_mock_backend.sh`: Wrapper to start the mock server.
 - `restart_otelcol.sh`: Restarts the Podman collector.
-- `otelcol_config.yaml`: Collector config with `bearertokenauth`.
-- `olla_otel_config.yaml`: Olla config with matching OTLP headers.
+- `otelcol_config.yaml`: Collector config with authenticated OTLP gRPC `:4317` and HTTP `:4318` receivers.
+- `olla_otel_config.yaml`: Olla base config with matching OTLP headers; transport and endpoint can be overridden by env vars.
 
 ## Verification
 
 Run the automated E2E test or perform manual requests and inspect the collector logs (`podman logs otelcol`).
+Verification should pass for both `grpc` and `http`.
 
 ### What to verify
 
@@ -112,4 +131,5 @@ Check for `Resource Logs`:
 
 #### 4. Authentication
 - If the collector rejects the data with `401` or `403`, check the `Authorization` header in `olla_otel_config.yaml` and the `bearertokenauth` token in `otelcol_config.yaml`.
-- Successful delivery (visible traces) confirms that authentication is working correctly.
+- For HTTP transport, also confirm Olla points at `127.0.0.1:4318` and `telemetry.otlp.protocol=http`.
+- Successful delivery for both transports confirms that authentication is working correctly.

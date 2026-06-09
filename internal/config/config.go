@@ -163,6 +163,7 @@ func DefaultConfig() *Config {
 			ServiceVersion: "",
 			OTLP: TelemetryOTLPConfig{
 				Endpoint: "localhost:4317",
+				Protocol: "grpc",
 				Insecure: true,
 			},
 			Traces: TelemetrySignalConfig{
@@ -252,25 +253,37 @@ func (c *Config) Validate() error {
 	}
 
 	if c.Telemetry.Enabled {
-		if c.Telemetry.ServiceName == "" {
-			return errors.New("telemetry.service_name must not be empty when telemetry is enabled")
-		}
-		if c.Telemetry.Traces.Enabled || c.Telemetry.Metrics.Enabled || c.Telemetry.Logs.Enabled {
-			if c.Telemetry.OTLP.Endpoint == "" {
-				return errors.New("telemetry.otlp.endpoint must not be empty when telemetry export is enabled")
-			}
-		}
-		if c.Telemetry.Logs.Enabled && c.Telemetry.Logs.Level == "" {
-			return errors.New("telemetry.logs.level must not be empty when telemetry logs export is enabled")
-		}
-		if c.Telemetry.PayloadCapture.MaxPromptBytes < 0 {
-			return errors.New("telemetry.payload_capture.max_prompt_bytes must be >= 0")
-		}
-		if c.Telemetry.PayloadCapture.MaxResponseBytes < 0 {
-			return errors.New("telemetry.payload_capture.max_response_bytes must be >= 0")
+		if err := c.validateTelemetry(); err != nil {
+			return err
 		}
 	}
 
+	return nil
+}
+
+func (c *Config) validateTelemetry() error {
+	if c.Telemetry.ServiceName == "" {
+		return errors.New("telemetry.service_name must not be empty when telemetry is enabled")
+	}
+	if c.Telemetry.Traces.Enabled || c.Telemetry.Metrics.Enabled || c.Telemetry.Logs.Enabled {
+		if c.Telemetry.OTLP.Endpoint == "" {
+			return errors.New("telemetry.otlp.endpoint must not be empty when telemetry export is enabled")
+		}
+		switch c.Telemetry.OTLP.Protocol {
+		case "", "grpc", "http":
+		default:
+			return fmt.Errorf("telemetry.otlp.protocol must be one of \"grpc\" or \"http\", got %q", c.Telemetry.OTLP.Protocol)
+		}
+	}
+	if c.Telemetry.Logs.Enabled && c.Telemetry.Logs.Level == "" {
+		return errors.New("telemetry.logs.level must not be empty when telemetry logs export is enabled")
+	}
+	if c.Telemetry.PayloadCapture.MaxPromptBytes < 0 {
+		return errors.New("telemetry.payload_capture.max_prompt_bytes must be >= 0")
+	}
+	if c.Telemetry.PayloadCapture.MaxResponseBytes < 0 {
+		return errors.New("telemetry.payload_capture.max_response_bytes must be >= 0")
+	}
 	return nil
 }
 
@@ -571,6 +584,9 @@ func applyEnvOverrides(config *Config) {
 	}
 	if val := os.Getenv("OLLA_TELEMETRY_OTLP_ENDPOINT"); val != "" {
 		config.Telemetry.OTLP.Endpoint = val
+	}
+	if val := os.Getenv("OLLA_TELEMETRY_OTLP_PROTOCOL"); val != "" {
+		config.Telemetry.OTLP.Protocol = strings.ToLower(val)
 	}
 	if val := os.Getenv("OLLA_TELEMETRY_OTLP_INSECURE"); val != "" {
 		if insecure, err := strconv.ParseBool(val); err == nil {

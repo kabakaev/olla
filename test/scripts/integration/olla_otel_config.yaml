@@ -29,6 +29,7 @@ telemetry:
   service_version: dev
   otlp:
     endpoint: 127.0.0.1:4317
+    protocol: grpc
     insecure: true
     headers:
       Authorization: "Bearer olla-e2e-test-token"

@@ -239,6 +239,7 @@ type TelemetryConfig struct {
 type TelemetryOTLPConfig struct {
 	Headers  map[string]string `yaml:"headers"`
 	Endpoint string            `yaml:"endpoint"`
+	Protocol string            `yaml:"protocol"`
 	Insecure bool              `yaml:"insecure"`
 }
 
