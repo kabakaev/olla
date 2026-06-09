@@ -10,8 +10,11 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploggrpc"
+	"go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploghttp"
 	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc"
+	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetrichttp"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
+	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
 	otellog "go.opentelemetry.io/otel/log"
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/propagation"
@@ -28,6 +31,8 @@ type Providers struct {
 	MeterProvider  *sdkmetric.MeterProvider
 	LoggerProvider *sdklog.LoggerProvider
 }
+
+const otlpProtocolHTTP = "http"
 
 func (p *Providers) Shutdown(ctx context.Context) error {
 	var errs []error
@@ -76,16 +81,10 @@ func InitProviders(ctx context.Context, cfg config.TelemetryConfig) (*Providers,
 	}
 
 	providers := &Providers{}
+	protocol := otlpProtocol(cfg.OTLP.Protocol)
 
 	if cfg.Traces.Enabled {
-		opts := []otlptracegrpc.Option{
-			otlptracegrpc.WithEndpoint(cfg.OTLP.Endpoint),
-			otlptracegrpc.WithHeaders(cfg.OTLP.Headers),
-		}
-		if cfg.OTLP.Insecure {
-			opts = append(opts, otlptracegrpc.WithInsecure())
-		}
-		exporter, err := otlptracegrpc.New(ctx, opts...)
+		exporter, err := newTraceExporter(ctx, cfg.OTLP, protocol)
 		if err != nil {
 			return nil, fmt.Errorf("create trace exporter: %w", err)
 		}
@@ -99,14 +98,7 @@ func InitProviders(ctx context.Context, cfg config.TelemetryConfig) (*Providers,
 	}
 
 	if cfg.Metrics.Enabled {
-		opts := []otlpmetricgrpc.Option{
-			otlpmetricgrpc.WithEndpoint(cfg.OTLP.Endpoint),
-			otlpmetricgrpc.WithHeaders(cfg.OTLP.Headers),
-		}
-		if cfg.OTLP.Insecure {
-			opts = append(opts, otlpmetricgrpc.WithInsecure())
-		}
-		exporter, err := otlpmetricgrpc.New(ctx, opts...)
+		exporter, err := newMetricExporter(ctx, cfg.OTLP, protocol)
 		if err != nil {
 			return nil, fmt.Errorf("create metric exporter: %w", err)
 		}
@@ -123,14 +115,7 @@ func InitProviders(ctx context.Context, cfg config.TelemetryConfig) (*Providers,
 	}
 
 	if cfg.Logs.Enabled {
-		opts := []otlploggrpc.Option{
-			otlploggrpc.WithEndpoint(cfg.OTLP.Endpoint),
-			otlploggrpc.WithHeaders(cfg.OTLP.Headers),
-		}
-		if cfg.OTLP.Insecure {
-			opts = append(opts, otlploggrpc.WithInsecure())
-		}
-		exporter, err := otlploggrpc.New(ctx, opts...)
+		exporter, err := newLogExporter(ctx, cfg.OTLP, protocol)
 		if err != nil {
 			return nil, fmt.Errorf("create log exporter: %w", err)
 		}
@@ -167,4 +152,80 @@ func versionOrConfig(v string) string {
 		return v
 	}
 	return version.Version
+}
+
+func otlpProtocol(protocol string) string {
+	if protocol == "" {
+		return "grpc"
+	}
+	return protocol
+}
+
+func newTraceExporter(ctx context.Context, cfg config.TelemetryOTLPConfig, protocol string) (sdktrace.SpanExporter, error) {
+	switch protocol {
+	case otlpProtocolHTTP:
+		opts := []otlptracehttp.Option{
+			otlptracehttp.WithEndpoint(cfg.Endpoint),
+			otlptracehttp.WithHeaders(cfg.Headers),
+		}
+		if cfg.Insecure {
+			opts = append(opts, otlptracehttp.WithInsecure())
+		}
+		return otlptracehttp.New(ctx, opts...)
+	default:
+		opts := []otlptracegrpc.Option{
+			otlptracegrpc.WithEndpoint(cfg.Endpoint),
+			otlptracegrpc.WithHeaders(cfg.Headers),
+		}
+		if cfg.Insecure {
+			opts = append(opts, otlptracegrpc.WithInsecure())
+		}
+		return otlptracegrpc.New(ctx, opts...)
+	}
+}
+
+func newMetricExporter(ctx context.Context, cfg config.TelemetryOTLPConfig, protocol string) (sdkmetric.Exporter, error) {
+	switch protocol {
+	case otlpProtocolHTTP:
+		opts := []otlpmetrichttp.Option{
+			otlpmetrichttp.WithEndpoint(cfg.Endpoint),
+			otlpmetrichttp.WithHeaders(cfg.Headers),
+		}
+		if cfg.Insecure {
+			opts = append(opts, otlpmetrichttp.WithInsecure())
+		}
+		return otlpmetrichttp.New(ctx, opts...)
+	default:
+		opts := []otlpmetricgrpc.Option{
+			otlpmetricgrpc.WithEndpoint(cfg.Endpoint),
+			otlpmetricgrpc.WithHeaders(cfg.Headers),
+		}
+		if cfg.Insecure {
+			opts = append(opts, otlpmetricgrpc.WithInsecure())
+		}
+		return otlpmetricgrpc.New(ctx, opts...)
+	}
+}
+
+func newLogExporter(ctx context.Context, cfg config.TelemetryOTLPConfig, protocol string) (sdklog.Exporter, error) {
+	switch protocol {
+	case otlpProtocolHTTP:
+		opts := []otlploghttp.Option{
+			otlploghttp.WithEndpoint(cfg.Endpoint),
+			otlploghttp.WithHeaders(cfg.Headers),
+		}
+		if cfg.Insecure {
+			opts = append(opts, otlploghttp.WithInsecure())
+		}
+		return otlploghttp.New(ctx, opts...)
+	default:
+		opts := []otlploggrpc.Option{
+			otlploggrpc.WithEndpoint(cfg.Endpoint),
+			otlploggrpc.WithHeaders(cfg.Headers),
+		}
+		if cfg.Insecure {
+			opts = append(opts, otlploggrpc.WithInsecure())
+		}
+		return otlploggrpc.New(ctx, opts...)
+	}
 }

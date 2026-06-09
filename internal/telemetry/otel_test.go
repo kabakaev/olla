@@ -3,6 +3,8 @@ package telemetry
 import (
 	"context"
 	"net"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 
@@ -106,6 +108,74 @@ func TestOTLPHeaders(t *testing.T) {
 			}
 		case <-timeout:
 			t.Fatalf("timed out waiting for OTLP headers. FoundAuth=%v, FoundCustom=%v", foundAuth, foundCustom)
+		}
+	}
+}
+
+func TestOTLPHeadersHTTP(t *testing.T) {
+	receivedHeaders := make(chan http.Header, 100)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		receivedHeaders <- r.Header.Clone()
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	ctx := context.Background()
+	cfg := config.TelemetryConfig{
+		Enabled:     true,
+		ServiceName: "test-service",
+		OTLP: config.TelemetryOTLPConfig{
+			Endpoint: server.Listener.Addr().String(),
+			Protocol: "http",
+			Insecure: true,
+			Headers: map[string]string{
+				"Authorization":   "Bearer test-token-123",
+				"X-Custom-Header": "custom-value",
+			},
+		},
+		Traces:  config.TelemetrySignalConfig{Enabled: true},
+		Metrics: config.TelemetrySignalConfig{Enabled: true},
+		Logs:    config.TelemetryLogsConfig{Enabled: true},
+	}
+
+	providers, err := InitProviders(ctx, cfg)
+	require.NoError(t, err)
+
+	tracer := providers.TracerProvider.Tracer("test")
+	_, span := tracer.Start(ctx, "test-span")
+	span.End()
+
+	meter := providers.MeterProvider.Meter("test")
+	counter, _ := meter.Int64Counter("test-counter")
+	counter.Add(ctx, 1)
+
+	logger := providers.LoggerProvider.Logger("test")
+	var record otellog.Record
+	record.SetBody(otellog.StringValue("test log message"))
+	logger.Emit(ctx, record)
+
+	shutdownCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+	_ = providers.Shutdown(shutdownCtx)
+
+	timeout := time.After(5 * time.Second)
+	foundAuth := false
+	foundCustom := false
+
+	for {
+		select {
+		case headers := <-receivedHeaders:
+			if headers.Get("Authorization") == "Bearer test-token-123" {
+				foundAuth = true
+			}
+			if headers.Get("X-Custom-Header") == "custom-value" {
+				foundCustom = true
+			}
+			if foundAuth && foundCustom {
+				return
+			}
+		case <-timeout:
+			t.Fatalf("timed out waiting for OTLP HTTP headers. FoundAuth=%v, FoundCustom=%v", foundAuth, foundCustom)
 		}
 	}
 }

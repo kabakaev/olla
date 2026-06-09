@@ -717,9 +717,10 @@ OpenTelemetry export settings for traces, metrics, and optional payload capture.
 | `enabled` | bool | `false` | Enable OpenTelemetry export |
 | `service_name` | string | `"olla"` | Service name used in telemetry resources |
 | `service_version` | string | `""` | Optional service version override |
-| `otlp.endpoint` | string | `"localhost:4317"` | OTLP gRPC collector endpoint |
+| `otlp.endpoint` | string | `"localhost:4317"` | OTLP collector endpoint |
+| `otlp.protocol` | string | `"grpc"` | OTLP transport protocol: `grpc` or `http` |
 | `otlp.headers` | map[string]string | `{}` | Custom HTTP headers for OTLP export (e.g., for auth) |
-| `otlp.insecure` | bool | `true` | Use insecure OTLP gRPC transport |
+| `otlp.insecure` | bool | `true` | Use insecure OTLP transport |
 | `traces.enabled` | bool | `true` | Enable trace export |
 | `metrics.enabled` | bool | `true` | Enable metric export |
 | `payload_capture.enabled` | bool | `false` | Enable prompt/response capture |
@@ -736,6 +737,7 @@ telemetry:
   service_version: "dev"
   otlp:
     endpoint: "otel-collector:4317"
+    protocol: "grpc"
     headers:
       Authorization: "Basic QWxhZGRpbjpvcGVuIHNlc2FtZQ=="
     insecure: true
@@ -759,6 +761,7 @@ OLLA_TELEMETRY_ENABLED=true
 OLLA_TELEMETRY_SERVICE_NAME=olla
 OLLA_TELEMETRY_SERVICE_VERSION=dev
 OLLA_TELEMETRY_OTLP_ENDPOINT=otel-collector:4317
+OLLA_TELEMETRY_OTLP_PROTOCOL=grpc
 OLLA_TELEMETRY_OTLP_INSECURE=true
 OLLA_TELEMETRY_TRACES_ENABLED=true
 OLLA_TELEMETRY_METRICS_ENABLED=true
