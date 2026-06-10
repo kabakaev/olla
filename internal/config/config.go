@@ -95,6 +95,10 @@ func DefaultConfig() *Config {
 				KeySources:      []string{"session_header", "prefix_hash", "auth_header"},
 				PrefixHashBytes: 512,
 			},
+			ClientAuth: ClientAuthConfig{
+				Enabled:              false,
+				AuthorizationHeaders: nil,
+			},
 		},
 		Discovery: DiscoveryConfig{
 			Type:            DefaultDiscoveryType,
@@ -261,6 +265,10 @@ func (c *Config) Validate() error {
 	}
 
 	if err := c.Dashboard.Validate(); err != nil {
+		return err
+	}
+
+	if err := c.Proxy.ClientAuth.Validate(); err != nil {
 		return err
 	}
 

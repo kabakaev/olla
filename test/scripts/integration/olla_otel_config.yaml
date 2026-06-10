@@ -53,6 +53,10 @@ proxy:
   profile: openai-compatible
   engine: olla
   load_balancer: round-robin
+  client_auth:
+    enabled: true
+    authorization_headers:
+      - "Bearer olla-client-e2e-token"
   connection_timeout: 30s
   response_timeout: 5m
   read_timeout: 5m

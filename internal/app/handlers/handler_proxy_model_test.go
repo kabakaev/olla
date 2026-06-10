@@ -197,7 +197,12 @@ func (m *mockStyledLogger) ErrorWithEndpoint(msg string, endpoint string, args .
 func (m *mockStyledLogger) InfoHealthy(msg string, endpoint string, args ...any)         {}
 func (m *mockStyledLogger) InfoHealthStatus(msg string, name string, status domain.EndpointStatus, args ...any) {
 }
-func (m *mockStyledLogger) GetUnderlying() *slog.Logger                                         { return m.underlying }
+func (m *mockStyledLogger) GetUnderlying() *slog.Logger {
+	if m.underlying == nil {
+		return slog.Default()
+	}
+	return m.underlying
+}
 func (m *mockStyledLogger) WithRequestID(requestID string) logger.StyledLogger                  { return m }
 func (m *mockStyledLogger) WithContext(ctx context.Context) logger.StyledLogger                 { return m }
 func (m *mockStyledLogger) WithPrefix(prefix string) logger.StyledLogger                        { return m }

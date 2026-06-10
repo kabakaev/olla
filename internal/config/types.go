@@ -239,9 +239,41 @@ type StickySessionConfig struct {
 	Enabled         bool `yaml:"enabled"`
 }
 
+// ClientAuthConfig controls inbound authentication for Olla proxy routes.
+// Requests to inference/proxy endpoints must present an Authorization header
+// whose full value exactly matches one of AuthorizationHeaders.
+type ClientAuthConfig struct {
+	AuthorizationHeaders []string `yaml:"authorization_headers"`
+	Enabled              bool     `yaml:"enabled"`
+}
+
+// Validate checks for invalid or ambiguous client auth configuration.
+func (c *ClientAuthConfig) Validate() error {
+	if !c.Enabled {
+		return nil
+	}
+	if len(c.AuthorizationHeaders) == 0 {
+		return errors.New("proxy.client_auth.authorization_headers must not be empty when proxy.client_auth.enabled=true")
+	}
+	seen := make(map[string]struct{}, len(c.AuthorizationHeaders))
+	for i, v := range c.AuthorizationHeaders {
+		trimmed := strings.TrimSpace(v)
+		if trimmed == "" {
+			return fmt.Errorf("proxy.client_auth.authorization_headers[%d] must not be empty", i)
+		}
+		if _, ok := seen[trimmed]; ok {
+			return fmt.Errorf("proxy.client_auth.authorization_headers[%d] duplicates another configured value", i)
+		}
+		seen[trimmed] = struct{}{}
+		c.AuthorizationHeaders[i] = trimmed
+	}
+	return nil
+}
+
 // ProxyConfig holds proxy-specific configuration
 type ProxyConfig struct {
 	ProfileFilter         *domain.FilterConfig `yaml:"profile_filter,omitempty"`
+	ClientAuth            ClientAuthConfig     `yaml:"client_auth"`
 	Engine                string               `yaml:"engine"`
 	LoadBalancer          string               `yaml:"load_balancer"`
 	Profile               string               `yaml:"profile"`

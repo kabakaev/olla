@@ -17,6 +17,7 @@ import (
 	"github.com/thushan/olla/internal/adapter/translator/anthropic"
 	"github.com/thushan/olla/internal/app/middleware"
 	"github.com/thushan/olla/internal/config"
+	"github.com/thushan/olla/internal/core/constants"
 	"github.com/thushan/olla/internal/core/domain"
 	"github.com/thushan/olla/internal/core/ports"
 	"github.com/thushan/olla/internal/logger"
@@ -27,7 +28,33 @@ import (
 type SecurityAdapters struct {
 	securityChain    *ports.SecurityChain
 	securityAdapters *security.Adapters // nil when security is not configured
+	clientAuth       *clientAuthPolicy
 	logger           logger.StyledLogger
+}
+
+type clientAuthPolicy struct {
+	allowed map[string]struct{}
+	enabled bool
+}
+
+func newClientAuthPolicy(cfg config.ClientAuthConfig) *clientAuthPolicy {
+	policy := &clientAuthPolicy{enabled: cfg.Enabled}
+	if !cfg.Enabled {
+		return policy
+	}
+	policy.allowed = make(map[string]struct{}, len(cfg.AuthorizationHeaders))
+	for _, v := range cfg.AuthorizationHeaders {
+		policy.allowed[v] = struct{}{}
+	}
+	return policy
+}
+
+func (p *clientAuthPolicy) allow(r *http.Request) bool {
+	if p == nil || !p.enabled {
+		return true
+	}
+	_, ok := p.allowed[r.Header.Get(constants.HeaderAuthorization)]
+	return ok
 }
 
 // CreateChainMiddleware creates middleware that applies the full security chain with enhanced logging.
@@ -40,37 +67,43 @@ func (s *SecurityAdapters) CreateChainMiddleware() func(http.Handler) http.Handl
 		// security path runs below.
 		withAccessLogging := middleware.CombinedLoggingMiddleware(s.logger)(next)
 
+		var inner http.Handler
 		if s.securityAdapters != nil {
 			// Delegate to the concrete adapter chain. It sets the correct status codes
 			// (429 + Retry-After/X-RateLimit-* for rate limiting, 413 for oversized
 			// bodies) rather than flattening everything to 403.
-			concreteChain := s.securityAdapters.CreateChainMiddleware()(withAccessLogging)
-			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				concreteChain.ServeHTTP(w, r)
+			inner = s.securityAdapters.CreateChainMiddleware()(withAccessLogging)
+		} else {
+			// Fallback: abstract chain only (e.g. unit tests that inject securityChain
+			// directly without wiring the full security.Adapters).
+			inner = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if s.securityChain != nil {
+					secReq := ports.SecurityRequest{
+						ClientID:      r.RemoteAddr,
+						Endpoint:      r.URL.Path,
+						Method:        r.Method,
+						BodySize:      r.ContentLength,
+						HeaderSize:    0,
+						Headers:       r.Header,
+						IsHealthCheck: r.URL.Path == "/internal/health",
+					}
+
+					result, err := s.securityChain.Validate(r.Context(), secReq)
+					if err != nil || !result.Allowed {
+						http.Error(w, "Security validation failed", http.StatusForbidden)
+						return
+					}
+				}
+				withAccessLogging.ServeHTTP(w, r)
 			})
 		}
 
-		// Fallback: abstract chain only (e.g. unit tests that inject securityChain
-		// directly without wiring the full security.Adapters).
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if s.securityChain != nil {
-				secReq := ports.SecurityRequest{
-					ClientID:      r.RemoteAddr,
-					Endpoint:      r.URL.Path,
-					Method:        r.Method,
-					BodySize:      r.ContentLength,
-					HeaderSize:    0,
-					Headers:       r.Header,
-					IsHealthCheck: r.URL.Path == "/internal/health",
-				}
-
-				result, err := s.securityChain.Validate(r.Context(), secReq)
-				if err != nil || !result.Allowed {
-					http.Error(w, "Security validation failed", http.StatusForbidden)
-					return
-				}
+			if !s.clientAuth.allow(r) {
+				http.Error(w, "Unauthorized", http.StatusUnauthorized)
+				return
 			}
-			withAccessLogging.ServeHTTP(w, r)
+			inner.ServeHTTP(w, r)
 		})
 	}
 }
@@ -148,6 +181,7 @@ func NewApplication(
 	// Create security adapters
 	securityAdapters := &SecurityAdapters{
 		securityChain: securityChain,
+		clientAuth:    newClientAuthPolicy(cfg.Proxy.ClientAuth),
 		logger:        logger,
 	}
 

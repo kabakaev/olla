@@ -70,9 +70,23 @@ go run . -c ./test/scripts/integration/olla_otel_config.yaml
 ```
 
 ### 4. Send test requests
-Non-streaming:
+Unauthenticated probe:
+```bash
+curl -i http://127.0.0.1:40124/olla/openai-compatible/v1/chat/completions \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "model":"gemma-4-e4b-it-iq4_nl.gguf",
+    "messages":[{"role":"user","content":"test"}],
+    "stream":false
+  }'
+```
+
+Expected: `401 Unauthorized`.
+
+Non-streaming authenticated:
 ```bash
 curl -sS http://127.0.0.1:40124/olla/openai-compatible/v1/chat/completions \
+  -H 'Authorization: Bearer olla-client-e2e-token' \
   -H 'Content-Type: application/json' \
   -d '{
     "model":"gemma-4-e4b-it-iq4_nl.gguf",
@@ -84,6 +98,7 @@ curl -sS http://127.0.0.1:40124/olla/openai-compatible/v1/chat/completions \
 Streaming:
 ```bash
 curl -sN http://127.0.0.1:40124/olla/openai-compatible/v1/chat/completions \
+  -H 'Authorization: Bearer olla-client-e2e-token' \
   -H 'Content-Type: application/json' \
   -d '{
     "model":"gemma-4-e4b-it-iq4_nl.gguf",
@@ -131,7 +146,8 @@ Check for `Resource Logs`:
 - Ensure `service.name` is set to `olla-local-test` (from `olla_otel_config.yaml`).
 
 #### 4. Authentication
+- Verify Olla client auth rejects missing/invalid `Authorization` with `401`.
 - If the collector rejects the data with `401` or `403`, check the `Authorization` header in `olla_otel_config.yaml` and the `bearertokenauth` token in `otelcol_config.yaml`.
 - For HTTP transport, also confirm Olla points at `127.0.0.1:4318` and `telemetry.otlp.protocol=http`.
 - If using a prefixed HTTP OTLP route, also confirm `telemetry.otlp.path` or `OLLA_TELEMETRY_OTLP_PATH` matches the upstream prefix, for example `/api/default/otel`.
-- Successful delivery for both transports confirms that authentication is working correctly.
+- Successful `401` on unauthenticated probe plus successful telemetry delivery on authenticated request confirms both client auth and collector auth work.
