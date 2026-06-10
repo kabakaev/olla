@@ -25,6 +25,7 @@ OLLA_CONFIG="$SCRIPT_DIR/olla_otel_config.yaml"
 OLLA_PORT=40124
 BACKEND_PORT=11434
 HTTP_PROXY_PORT=14318
+OLLA_CLIENT_AUTH_HEADER="Authorization: Bearer olla-client-e2e-token"
 declare -a TRANSPORTS=("grpc" "http")
 COLLECTOR_LOG_SNAPSHOT="${TMPDIR:-/tmp}/olla-otelcol-e2e.log"
 
@@ -125,10 +126,22 @@ for transport in "${TRANSPORTS[@]}"; do
     go run . -c "$OLLA_CONFIG" &
     wait_for_port $OLLA_PORT "Olla"
 
-    # 4. Make Inference Call
-    echo -e "\n${YELLOW}[4/5] Sending test inference request to Olla over ${transport}...${RESET}"
+    # 4. Verify client auth, then make inference call
+    echo -e "\n${YELLOW}[4/5] Verifying Olla client auth over ${transport}...${RESET}"
+    UNAUTH_STATUS=$(curl -sS -o /dev/null -w "%{http_code}" \
+      http://127.0.0.1:$OLLA_PORT/olla/openai-compatible/v1/chat/completions \
+      -H 'Content-Type: application/json' \
+      -d '{"model":"gemma-4-e4b-it-iq4_nl.gguf","messages":[{"role":"user","content":"unauthorized probe"}],"stream":false}')
+    if [[ "$UNAUTH_STATUS" != "401" ]]; then
+        echo -e "${RED}✗ Expected unauthorized request to return 401, got ${UNAUTH_STATUS}${RESET}"
+        exit 1
+    fi
+    echo -e "${GREEN}✓ Unauthorized request rejected with 401${RESET}"
+
+    echo -e "${YELLOW}Sending authorized test inference request to Olla over ${transport}...${RESET}"
     TEST_ID="e2e-${transport}-$(date +%s)"
     RESPONSE=$(curl -sS http://127.0.0.1:$OLLA_PORT/olla/openai-compatible/v1/chat/completions \
+      -H "$OLLA_CLIENT_AUTH_HEADER" \
       -H 'Content-Type: application/json' \
       -d "{
         \"model\":\"gemma-4-e4b-it-iq4_nl.gguf\",

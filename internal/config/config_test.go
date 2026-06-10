@@ -148,6 +148,47 @@ func TestConfigValidate_InvalidTelemetryOTLPProtocol(t *testing.T) {
 	}
 }
 
+func TestConfigValidate_ClientAuth(t *testing.T) {
+	t.Parallel()
+
+	t.Run("enabled with values is valid", func(t *testing.T) {
+		t.Parallel()
+		cfg := DefaultConfig()
+		cfg.Proxy.ClientAuth.Enabled = true
+		cfg.Proxy.ClientAuth.AuthorizationHeaders = []string{"  Bearer token-1  ", "Bearer token-2"}
+
+		if err := cfg.Validate(); err != nil {
+			t.Fatalf("Validate() error = %v", err)
+		}
+		if got := cfg.Proxy.ClientAuth.AuthorizationHeaders[0]; got != "Bearer token-1" {
+			t.Fatalf("trimmed header = %q, want %q", got, "Bearer token-1")
+		}
+	})
+
+	t.Run("enabled with empty list fails", func(t *testing.T) {
+		t.Parallel()
+		cfg := DefaultConfig()
+		cfg.Proxy.ClientAuth.Enabled = true
+
+		err := cfg.Validate()
+		if err == nil {
+			t.Fatal("expected validation error")
+		}
+	})
+
+	t.Run("duplicate values fail", func(t *testing.T) {
+		t.Parallel()
+		cfg := DefaultConfig()
+		cfg.Proxy.ClientAuth.Enabled = true
+		cfg.Proxy.ClientAuth.AuthorizationHeaders = []string{"Bearer dup", "Bearer dup"}
+
+		err := cfg.Validate()
+		if err == nil {
+			t.Fatal("expected validation error")
+		}
+	})
+}
+
 func TestConfigValidation(t *testing.T) {
 	testCases := []struct {
 		name   string

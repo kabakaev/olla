@@ -92,6 +92,10 @@ func DefaultConfig() *Config {
 				KeySources:      []string{"session_header", "prefix_hash", "auth_header"},
 				PrefixHashBytes: 512,
 			},
+			ClientAuth: ClientAuthConfig{
+				Enabled:              false,
+				AuthorizationHeaders: nil,
+			},
 		},
 		Discovery: DiscoveryConfig{
 			Type:            DefaultDiscoveryType,
@@ -251,6 +255,10 @@ func (c *Config) Validate() error {
 
 	if err := c.Server.Cors.Validate(); err != nil {
 		return fmt.Errorf("server.cors config invalid: %w", err)
+	}
+
+	if err := c.Proxy.ClientAuth.Validate(); err != nil {
+		return err
 	}
 
 	if c.Telemetry.Enabled {

@@ -16,6 +16,7 @@ import (
 	"github.com/thushan/olla/internal/adapter/translator/anthropic"
 	"github.com/thushan/olla/internal/app/middleware"
 	"github.com/thushan/olla/internal/config"
+	"github.com/thushan/olla/internal/core/constants"
 	"github.com/thushan/olla/internal/core/domain"
 	"github.com/thushan/olla/internal/core/ports"
 	"github.com/thushan/olla/internal/logger"
@@ -25,7 +26,33 @@ import (
 // SecurityAdapters provides middleware for security chain
 type SecurityAdapters struct {
 	securityChain *ports.SecurityChain
+	clientAuth    *clientAuthPolicy
 	logger        logger.StyledLogger
+}
+
+type clientAuthPolicy struct {
+	allowed map[string]struct{}
+	enabled bool
+}
+
+func newClientAuthPolicy(cfg config.ClientAuthConfig) *clientAuthPolicy {
+	policy := &clientAuthPolicy{enabled: cfg.Enabled}
+	if !cfg.Enabled {
+		return policy
+	}
+	policy.allowed = make(map[string]struct{}, len(cfg.AuthorizationHeaders))
+	for _, v := range cfg.AuthorizationHeaders {
+		policy.allowed[v] = struct{}{}
+	}
+	return policy
+}
+
+func (p *clientAuthPolicy) allow(r *http.Request) bool {
+	if p == nil || !p.enabled {
+		return true
+	}
+	_, ok := p.allowed[r.Header.Get(constants.HeaderAuthorization)]
+	return ok
 }
 
 // CreateChainMiddleware creates middleware that applies the full security chain with enhanced logging
@@ -36,6 +63,10 @@ func (s *SecurityAdapters) CreateChainMiddleware() func(http.Handler) http.Handl
 		withAccessLogging := middleware.AccessLoggingMiddleware(s.logger)(withLogging)
 
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if !s.clientAuth.allow(r) {
+				http.Error(w, "Unauthorized", http.StatusUnauthorized)
+				return
+			}
 			if s.securityChain != nil {
 				// Create security request from HTTP request
 				secReq := ports.SecurityRequest{
@@ -125,6 +156,7 @@ func NewApplication(
 	// Create security adapters
 	securityAdapters := &SecurityAdapters{
 		securityChain: securityChain,
+		clientAuth:    newClientAuthPolicy(cfg.Proxy.ClientAuth),
 		logger:        logger,
 	}
 
