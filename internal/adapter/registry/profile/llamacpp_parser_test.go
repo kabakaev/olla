@@ -525,6 +525,40 @@ func TestLlamaCppParser_EdgeCases(t *testing.T) {
 		assert.Equal(t, constants.RecipeGGUF, *model.Details.Format)
 	})
 
+	t.Run("handles modern llama.cpp response where vocab_type is boolean", func(t *testing.T) {
+		response := `{
+			"object": "list",
+			"data": [
+				{
+					"id": "/models/gemma-4-E4B-it-IQ4_NL.gguf",
+					"object": "model",
+					"created": 1788685690,
+					"owned_by": "llamacpp",
+					"meta": {
+						"vocab_type": true,
+						"n_vocab": 262144,
+						"n_ctx": 65536,
+						"n_ctx_train": 131072,
+						"n_embd": 2560,
+						"n_params": 45240,
+						"size": 25240
+					}
+				}
+			]
+		}`
+
+		models, err := parser.Parse([]byte(response))
+		require.NoError(t, err)
+		require.Len(t, models, 1)
+
+		model := models[0]
+		assert.Equal(t, "/models/gemma-4-E4B-it-IQ4_NL.gguf", model.Name)
+		assert.Equal(t, "llamacpp", model.Type)
+		require.NotNil(t, model.Details)
+		require.NotNil(t, model.Details.Format)
+		assert.Equal(t, constants.RecipeGGUF, *model.Details.Format)
+	})
+
 	t.Run("handles models array in dual format response", func(t *testing.T) {
 		// llama.cpp can return both 'data' and 'models' arrays (Ollama compatibility)
 		// Parser should only use 'data' array

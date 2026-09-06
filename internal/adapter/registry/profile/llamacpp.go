@@ -30,12 +30,13 @@ type LlamaCppModel struct {
 // Provides detailed information about model architecture and capabilities
 // Reserved for future capability inference enhancements
 type LlamaCppMeta struct {
-	VocabType int   `json:"vocab_type"`  // Vocabulary type identifier
-	NVocab    int   `json:"n_vocab"`     // Vocabulary size
-	NCtxTrain int   `json:"n_ctx_train"` // Training context length
-	NEmbd     int   `json:"n_embd"`      // Embedding dimensions
-	NParams   int64 `json:"n_params"`    // Total parameter count
-	Size      int64 `json:"size"`        // Model file size in bytes
+	VocabType any   `json:"vocab_type"`        // Vocabulary type identifier (can be int, bool, or string across llama.cpp versions)
+	NVocab    int   `json:"n_vocab"`           // Vocabulary size
+	NCtx      int   `json:"n_ctx,omitempty"`   // Context length
+	NCtxTrain int   `json:"n_ctx_train"`       // Training context length
+	NEmbd     int   `json:"n_embd"`            // Embedding dimensions
+	NParams   int64 `json:"n_params"`          // Total parameter count
+	Size      int64 `json:"size"`              // Model file size in bytes
 }
 
 // LlamaCppProps represents the response from llama.cpp /props endpoint
